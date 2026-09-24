@@ -18,6 +18,7 @@ import {
   FileText,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { modalBackdropVariants, modalPanelVariants, formErrorShakeVariants } from '@/lib/motion';
 
 interface ChatExpenseModalProps {
   isOpen: boolean;
@@ -52,6 +53,15 @@ export const ChatExpenseModal: React.FC<ChatExpenseModalProps> = ({
   const recognitionRef = useRef<any>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const baseTextRef = useRef<string>('');
+
+  // Esc key listener for modal accessibility
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   // Live parse whenever input text changes: instant local regex + async AI enhancement
   useEffect(() => {
@@ -252,14 +262,28 @@ export const ChatExpenseModal: React.FC<ChatExpenseModalProps> = ({
       ? parsed.detectedParticipantIds.map((id) => participants.find((p) => p.id === id)?.name || id).join(', ')
       : 'All Active Squad Members';
 
+  if (!isOpen) return null;
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 dark:bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+    <AnimatePresence>
       <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 10 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 10 }}
-        className="bg-surface-overlay border border-surface-hairline rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+        key="chat-modal-backdrop"
+        variants={modalBackdropVariants}
+        initial="hidden"
+        animate="visible"
+        exit="exit"
+        className="fixed inset-0 z-50 bg-black/50 dark:bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
+        onClick={onClose}
       >
+        <motion.div
+          key="chat-modal-panel"
+          variants={modalPanelVariants}
+          initial="hidden"
+          animate="visible"
+          exit="exit"
+          onClick={(e) => e.stopPropagation()}
+          className="bg-surface-overlay border border-surface-hairline rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+        >
         {/* Header */}
         <div className="p-6 border-b border-surface-hairline bg-surface-base flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -520,6 +544,7 @@ export const ChatExpenseModal: React.FC<ChatExpenseModalProps> = ({
           </div>
         </div>
       </motion.div>
-    </div>
+    </motion.div>
+  </AnimatePresence>
   );
 };

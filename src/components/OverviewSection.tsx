@@ -41,6 +41,8 @@ import { SpendDonutChart } from './SpendDonutChart';
 import { ParticipantBarChart } from './ParticipantBarChart';
 import { TripVibeGauge } from './TripVibeGauge';
 import { ReconciliationAuditCard } from './ReconciliationAuditCard';
+import { CountUpMoney } from './CountUpMoney';
+import { MOTION_TOKENS } from '@/lib/motion';
 import { AnomalyFeedBanner } from './AnomalyFeedBanner';
 
 interface OverviewSectionProps {
@@ -442,7 +444,9 @@ export const OverviewSection: React.FC<OverviewSectionProps> = ({
             </div>
 
             <div className="flex items-baseline gap-1.5 mt-1">
-              <span
+              <CountUpMoney
+                value={netAmount}
+                prefix="₹"
                 className={`text-2xl sm:text-3xl font-numeric font-bold tracking-tight ${
                   netAmount > 0
                     ? 'text-emerald-400'
@@ -450,10 +454,7 @@ export const OverviewSection: React.FC<OverviewSectionProps> = ({
                     ? 'text-rose-400'
                     : 'text-ink-primary'
                 }`}
-              >
-                {netAmount > 0 ? '+' : netAmount < 0 ? '-' : ''}₹
-                {Math.abs(netAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-              </span>
+              />
               <span className="text-[11px] font-mono text-ink-muted">INR</span>
             </div>
           </div>
@@ -490,9 +491,11 @@ export const OverviewSection: React.FC<OverviewSectionProps> = ({
             </div>
 
             <div className="flex items-baseline gap-1.5 mt-1">
-              <span className="text-2xl sm:text-3xl font-numeric font-bold text-ink-primary">
-                ₹{totalSpend.toLocaleString('en-IN')}
-              </span>
+              <CountUpMoney
+                value={totalSpend}
+                prefix="₹"
+                className="text-2xl sm:text-3xl font-numeric font-bold text-ink-primary"
+              />
               <span className="text-[11px] font-mono text-ink-muted">
                 / ₹{budget.toLocaleString('en-IN')}
               </span>

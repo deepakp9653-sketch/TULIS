@@ -5,6 +5,8 @@ import { Expense, Participant, Booking, RefundEvent } from '@/lib/types';
 import { Receipt, Plus, Search, Calendar, FileText, ExternalLink, X, CheckCircle2, Image as ImageIcon, AlertCircle, ShieldAlert, Check, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { UserAvatar } from './UserAvatar';
+import { CountUpMoney } from './CountUpMoney';
+import { listItemVariants, MOTION_TOKENS } from '@/lib/motion';
 
 interface ExpensesSectionProps {
   expenses: Expense[];
@@ -90,60 +92,67 @@ export const ExpensesSection: React.FC<ExpensesSectionProps> = ({
       {/* Expenses Feed */}
       <div className="space-y-4">
         {filteredExpenses.length > 0 ? (
-          filteredExpenses.map((exp) => {
-            const payer = participants.find((p) => p.id === exp.paidById);
-            const linkedBooking = bookings.find((b) => b.id === exp.bookingId);
-            const expRefunds = refunds.filter((r) => r.expenseId === exp.id || (r.bookingId && r.bookingId === exp.bookingId));
-            const totalRefundedAmount = expRefunds.reduce((sum, r) => sum + r.amount, 0);
+          <AnimatePresence mode="popLayout">
+            {filteredExpenses.map((exp) => {
+              const payer = participants.find((p) => p.id === exp.paidById);
+              const linkedBooking = bookings.find((b) => b.id === exp.bookingId);
+              const expRefunds = refunds.filter((r) => r.expenseId === exp.id || (r.bookingId && r.bookingId === exp.bookingId));
+              const totalRefundedAmount = expRefunds.reduce((sum, r) => sum + r.amount, 0);
 
-            return (
-              <motion.div
-                key={exp.id}
-                layout
-                className="p-5 rounded-2xl bg-surface-raised border border-surface-hairline shadow-paper space-y-4 hover:border-emerald-500/30 transition-all"
-              >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-brand-gold bg-brand-gold/15 px-2.5 py-0.5 rounded border border-brand-gold/30">
-                        {exp.category}
-                      </span>
-                      <span className="text-xs px-2 py-0.5 rounded bg-surface-overlay text-ink-secondary font-mono">
-                        {exp.splitMethod.replace('_', ' ')}
-                      </span>
-                      <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-surface-hairline text-ink-muted font-mono flex items-center gap-1.5 border border-surface-hairline">
-                        <Clock className="w-3 h-3 text-emerald-400 shrink-0" />
-                        <span>
-                          {new Date(exp.createdAt).toLocaleString('en-IN', {
-                            day: 'numeric',
-                            month: 'short',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            hour12: true,
-                          })}
+              return (
+                <motion.div
+                  key={exp.id}
+                  layout
+                  variants={listItemVariants}
+                  initial="hidden"
+                  animate="visible"
+                  exit="exit"
+                  whileHover={{ y: -2 }}
+                  whileTap={{ scale: 0.99 }}
+                  className="p-5 rounded-2xl bg-surface-raised border border-surface-hairline shadow-paper space-y-4 hover:border-emerald-500/30 transition-all cursor-pointer"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-brand-gold bg-brand-gold/15 px-2.5 py-0.5 rounded border border-brand-gold/30">
+                          {exp.category}
                         </span>
-                      </span>
-                      {totalRefundedAmount > 0 && (
-                        <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30 flex items-center gap-1">
-                          <CheckCircle2 className="w-3 h-3 text-emerald-400" /> Vendor Refund Credited (-₹{totalRefundedAmount.toLocaleString('en-IN')})
+                        <span className="text-xs px-2 py-0.5 rounded bg-surface-overlay text-ink-secondary font-mono">
+                          {exp.splitMethod.replace('_', ' ')}
                         </span>
-                      )}
-                      {exp.receiptUrl && (
-                        <span className="text-[10px] px-2 py-0.5 rounded bg-ledger-surplusBg text-ledger-surplus font-bold border border-ledger-surplus/30 flex items-center gap-1">
-                          <CheckCircle2 className="w-3 h-3" /> Bill Proof Attached
+                        <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-surface-hairline text-ink-muted font-mono flex items-center gap-1.5 border border-surface-hairline">
+                          <Clock className="w-3 h-3 text-emerald-400 shrink-0" />
+                          <span>
+                            {new Date(exp.createdAt).toLocaleString('en-IN', {
+                              day: 'numeric',
+                              month: 'short',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              hour12: true,
+                            })}
+                          </span>
                         </span>
-                      )}
+                        {totalRefundedAmount > 0 && (
+                          <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30 flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-400" /> Vendor Refund Credited (-₹{totalRefundedAmount.toLocaleString('en-IN')})
+                          </span>
+                        )}
+                        {exp.receiptUrl && (
+                          <span className="text-[10px] px-2 py-0.5 rounded bg-ledger-surplusBg text-ledger-surplus font-bold border border-ledger-surplus/30 flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3" /> Bill Proof Attached
+                          </span>
+                        )}
+                      </div>
+                      <h3 className="font-serif-display font-bold text-base text-ink-primary mt-1.5">
+                        {exp.title}
+                      </h3>
                     </div>
-                    <h3 className="font-serif-display font-bold text-base text-ink-primary mt-1.5">
-                      {exp.title}
-                    </h3>
-                  </div>
 
-                  <div className="text-left sm:text-right">
-                    <div className="text-xl font-numeric font-bold text-ink-primary">
-                      ₹{exp.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                    </div>
+                    <div className="text-left sm:text-right">
+                      <div className="text-xl font-numeric font-bold text-ink-primary">
+                        <CountUpMoney value={exp.totalAmount} prefix="₹" />
+                      </div>
                     <div className="text-xs text-ink-muted flex items-center sm:justify-end gap-1 mt-0.5">
                       Paid by{' '}
                       <span className="font-semibold text-ink-primary flex items-center gap-1.5">
@@ -241,7 +250,8 @@ export const ExpensesSection: React.FC<ExpensesSectionProps> = ({
                 </div>
               </motion.div>
             );
-          })
+          })}
+        </AnimatePresence>
         ) : (
           <div className="p-12 text-center bg-surface-raised rounded-2xl border border-surface-hairline space-y-3">
             <Receipt className="w-10 h-10 text-ink-muted mx-auto" />
