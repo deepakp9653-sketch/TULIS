@@ -413,7 +413,7 @@ export const SettlementVisualizer: React.FC<SettlementVisualizerProps> = ({
                 All Debts Fully Settled!
               </p>
               <p className="text-xs text-ink-muted">
-                The TripSync ledger has reached zero net balance. No pending transactions.
+                The Tulis ledger has reached zero net balance. No pending transactions.
               </p>
             </div>
           )}

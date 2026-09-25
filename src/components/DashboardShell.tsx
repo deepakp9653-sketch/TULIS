@@ -37,6 +37,7 @@ import {
   MoreHorizontal,
   Sun,
   Moon,
+  FolderHeart,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { UserAvatar } from './UserAvatar';
@@ -68,6 +69,8 @@ interface DashboardShellProps {
   onOpenRoomOptimizer?: () => void;
   onOpenSettlementReport?: () => void;
   onOpenExplainBalance?: (participantId: string) => void;
+  onOpenMyTrips?: () => void;
+  currentUserSession?: any;
   onGoToLanding?: () => void;
 }
 
@@ -97,6 +100,8 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
   onOpenRoomOptimizer,
   onOpenSettlementReport,
   onOpenExplainBalance,
+  onOpenMyTrips,
+  currentUserSession,
   onGoToLanding,
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -128,13 +133,13 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
               <div className="flex items-center justify-between">
                 <button
                   onClick={onGoToLanding}
-                  title="TripSync Home"
+                  title="Tulis Home"
                   className="flex items-center gap-2.5 text-left group cursor-pointer"
                 >
                   <LiquidLogo size={30} />
                   <div>
                     <span className="font-bold text-sm text-ink-primary tracking-tight block leading-tight group-hover:text-brand-emerald transition-colors">
-                      TripSync
+                      Tulis
                     </span>
                     <span className="text-[10px] font-mono text-ink-muted tracking-wider block">
                       Smart Expense Engine
@@ -176,6 +181,25 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
                   <ChevronDown className="w-3.5 h-3.5 text-ink-muted group-hover:text-ink-primary transition-colors" />
                 </div>
               </button>
+
+              {/* My Cloud Trips Quick Launcher */}
+              {onOpenMyTrips && (
+                <button
+                  onClick={onOpenMyTrips}
+                  className="w-full px-3 py-1.5 rounded-xl bg-surface-inset hover:bg-surface-raised border border-surface-hairline text-xs font-medium text-ink-secondary hover:text-ink-primary flex items-center justify-between transition-all cursor-pointer group"
+                  title="Manage personal cloud trips"
+                >
+                  <div className="flex items-center gap-2">
+                    <FolderHeart className="w-3.5 h-3.5 text-brand-emerald" />
+                    <span>My Trips</span>
+                  </div>
+                  {currentUserSession && (
+                    <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-brand-emerald/15 text-brand-emerald">
+                      {currentUserSession.name?.split(' ')[0] || 'Cloud'}
+                    </span>
+                  )}
+                </button>
+              )}
             </div>
 
             {/* Navigation Links with Sliding Active Pill */}
@@ -415,6 +439,18 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
                 </motion.button>
               )}
 
+              {/* My Trips Cloud Switcher Button */}
+              {onOpenMyTrips && (
+                <button
+                  onClick={onOpenMyTrips}
+                  title="View your cloud trips"
+                  className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-raised hover:bg-surface-overlay border border-surface-hairline text-xs font-semibold text-ink-primary transition-colors cursor-pointer"
+                >
+                  <FolderHeart className="w-3.5 h-3.5 text-brand-emerald" />
+                  <span>My Trips</span>
+                </button>
+              )}
+
               {/* Share Trip Button */}
               <LiquidGlassButton
                 variant="glass"
@@ -463,6 +499,27 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
                     </div>
                   </div>
                 </div>
+
+                {/* Mobile My Cloud Trips Trigger */}
+                {onOpenMyTrips && (
+                  <button
+                    onClick={() => {
+                      setIsMobileMenuOpen(false);
+                      onOpenMyTrips();
+                    }}
+                    className="w-full p-2.5 rounded-xl bg-surface-raised border border-surface-hairline text-xs font-semibold text-ink-primary flex items-center justify-between transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2">
+                      <FolderHeart className="w-4 h-4 text-brand-emerald" />
+                      <span>My Cloud Trips</span>
+                    </div>
+                    {currentUserSession && (
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-brand-emerald/15 text-brand-emerald">
+                        {currentUserSession.name?.split(' ')[0]}
+                      </span>
+                    )}
+                  </button>
+                )}
 
                 {/* Mobile Navigation Tabs Grid */}
                 <div className="space-y-1.5">

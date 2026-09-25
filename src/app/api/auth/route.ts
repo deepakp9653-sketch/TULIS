@@ -1,51 +1,39 @@
 import { NextResponse } from 'next/server';
-import { authenticateUser, getAllUsers, DEMO_USERS } from '@/lib/user-store';
+import { sql } from '@/lib/db';
+import {
+  hashPassword,
+  verifyPassword,
+  generateNumericOtp,
+  createSessionToken,
+  getCurrentUser,
+  getUserAccessibleTrips,
+  AuthSessionUser,
+} from '@/lib/auth-service';
+import { sendVerificationOtpEmail } from '@/lib/email-service';
+import { DEMO_USERS } from '@/lib/user-store';
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const users = await getAllUsers();
-    // Return sanitized users (keep password for demo accounts so user can see it in UI)
-    return NextResponse.json({
-      success: true,
-      users: users.map((u) => ({
-        id: u.id,
-        name: u.name,
-        email: u.email,
-        role: u.role,
-        avatar: u.avatar,
-        upiId: u.upiId,
-        demoPassword: u.password,
-      })),
-    });
-  } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
-  }
-}
+    const { searchParams } = new URL(req.url);
+    const action = searchParams.get('action');
 
-export async function POST(request: Request) {
-  try {
-    const body = await request.json();
-    const { action, email, id, password } = body;
-
-    if (action === 'login' || action === 'switch') {
-      const target = email || id;
-      if (!target || !password) {
-        return NextResponse.json(
-          { success: false, message: 'Email/ID and password are required.' },
-          { status: 400 }
-        );
+    // 1. Check current logged-in session user
+    if (action === 'me') {
+      const sessionUser = await getCurrentUser();
+      if (!sessionUser) {
+        return NextResponse.json({ success: true, user: null });
       }
 
-      const user = await authenticateUser(target, password);
-      if (!user) {
-        return NextResponse.json(
-          {
-            success: false,
-            message: 'Invalid password. (Hint: Demo accounts use "password123")',
-          },
-          { status: 401 }
-        );
-      }
+      // Fetch latest profile from DB
+      const dbUsers = await sql`
+        SELECT id, name, email, role, avatar, upi_id as "upiId", email_verified as "emailVerified"
+        FROM users
+        WHERE id = ${sessionUser.id}
+        LIMIT 1;
+      `;
+
+      const user = dbUsers.length > 0 ? dbUsers[0] : sessionUser;
+      const accessibleTrips = await getUserAccessibleTrips(user.id, user.email);
 
       return NextResponse.json({
         success: true,
@@ -53,16 +41,336 @@ export async function POST(request: Request) {
           id: user.id,
           name: user.name,
           email: user.email,
-          role: user.role,
-          avatar: user.avatar,
-          upiId: user.upiId,
-          accessibleTripIds: user.accessibleTripIds,
+          role: user.role || 'traveler',
+          avatar: user.avatar || '',
+          upiId: (user as any).upiId || (user as any).upi_id || '',
+          emailVerified: Boolean((user as any).emailVerified ?? (user as any).email_verified),
         },
+        accessibleTrips,
       });
     }
 
-    return NextResponse.json({ success: false, message: 'Invalid action' }, { status: 400 });
+    // 2. Fetch all registered users for demo switcher
+    const users = await sql`
+      SELECT id, name, email, role, avatar, upi_id as "upiId", email_verified as "emailVerified"
+      FROM users
+      ORDER BY created_at ASC
+      LIMIT 20;
+    `;
+
+    return NextResponse.json({
+      success: true,
+      users: users.length > 0 ? users : DEMO_USERS,
+    });
   } catch (err: any) {
+    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+  }
+}
+
+export async function POST(req: Request) {
+  try {
+    const body = await req.json();
+    const { action } = body;
+
+    // ----------------------------------------------------
+    // Action: REGISTER
+    // ----------------------------------------------------
+    if (action === 'register') {
+      const { name, email, password, upiId } = body;
+
+      if (!name || !email || !password) {
+        return NextResponse.json({ success: false, error: 'Name, email, and password are required.' }, { status: 400 });
+      }
+
+      const cleanEmail = email.trim().toLowerCase();
+      if (!cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+        return NextResponse.json({ success: false, error: 'Please enter a valid email address.' }, { status: 400 });
+      }
+
+      if (password.length < 6) {
+        return NextResponse.json({ success: false, error: 'Password must be at least 6 characters.' }, { status: 400 });
+      }
+
+      // Check if user already exists
+      const existing = await sql`
+        SELECT id, email, email_verified as "emailVerified"
+        FROM users
+        WHERE LOWER(email) = ${cleanEmail}
+        LIMIT 1;
+      `;
+
+      const otp = generateNumericOtp();
+      const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 mins
+      const hashedPassword = await hashPassword(password);
+      const defaultUpi = upiId?.trim() || `${name.toLowerCase().replace(/\s+/g, '')}@upi`;
+
+      let userId: string;
+
+      if (existing.length > 0) {
+        const u = existing[0];
+        if (u.emailVerified) {
+          return NextResponse.json(
+            { success: false, error: 'An account with this email already exists. Please log in.' },
+            { status: 409 }
+          );
+        }
+
+        // Unverified account: update password and issue new OTP
+        userId = u.id;
+        await sql`
+          UPDATE users
+          SET name = ${name.trim()},
+              password_hash = ${hashedPassword},
+              password = ${password},
+              upi_id = ${defaultUpi},
+              verification_otp = ${otp},
+              verification_expires_at = ${expiresAt}
+          WHERE id = ${userId};
+        `;
+      } else {
+        // Create new user record
+        userId = 'u-' + Date.now();
+        await sql`
+          INSERT INTO users (id, name, email, password_hash, password, role, upi_id, email_verified, verification_otp, verification_expires_at)
+          VALUES (
+            ${userId},
+            ${name.trim()},
+            ${cleanEmail},
+            ${hashedPassword},
+            ${password},
+            'traveler',
+            ${defaultUpi},
+            FALSE,
+            ${otp},
+            ${expiresAt}
+          );
+        `;
+      }
+
+      // Send verification email via Resend
+      const emailRes = await sendVerificationOtpEmail(cleanEmail, otp, name.trim());
+
+      return NextResponse.json({
+        success: true,
+        requiresVerification: true,
+        userId,
+        email: cleanEmail,
+        isSimulated: emailRes.isSimulated,
+        simulatedOtp: emailRes.isSimulated ? otp : undefined,
+        message: 'Verification code sent to your email.',
+      });
+    }
+
+    // ----------------------------------------------------
+    // Action: VERIFY-OTP
+    // ----------------------------------------------------
+    if (action === 'verify-otp') {
+      const { email, otp } = body;
+
+      if (!email || !otp) {
+        return NextResponse.json({ success: false, error: 'Email and 6-digit OTP code are required.' }, { status: 400 });
+      }
+
+      const cleanEmail = email.trim().toLowerCase();
+      const cleanOtp = otp.trim();
+
+      const users = await sql`
+        SELECT id, name, email, role, avatar, upi_id as "upiId",
+               verification_otp as "verificationOtp",
+               verification_expires_at as "verificationExpiresAt"
+        FROM users
+        WHERE LOWER(email) = ${cleanEmail}
+        LIMIT 1;
+      `;
+
+      if (users.length === 0) {
+        return NextResponse.json({ success: false, error: 'Account not found.' }, { status: 404 });
+      }
+
+      const u = users[0];
+
+      if (!u.verificationOtp || u.verificationOtp !== cleanOtp) {
+        return NextResponse.json({ success: false, error: 'Invalid verification code. Please check and try again.' }, { status: 400 });
+      }
+
+      if (u.verificationExpiresAt && new Date(u.verificationExpiresAt) < new Date()) {
+        return NextResponse.json({ success: false, error: 'Verification code has expired. Please request a new code.' }, { status: 410 });
+      }
+
+      // Mark email as verified and clear OTP
+      await sql`
+        UPDATE users
+        SET email_verified = TRUE,
+            verification_otp = NULL,
+            verification_expires_at = NULL,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ${u.id};
+      `;
+
+      const sessionUser: AuthSessionUser = {
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        role: u.role || 'traveler',
+        avatar: u.avatar || '',
+        upiId: u.upiId || '',
+        emailVerified: true,
+      };
+
+      const sessionToken = await createSessionToken(sessionUser);
+      const accessibleTrips = await getUserAccessibleTrips(sessionUser.id, sessionUser.email);
+
+      const response = NextResponse.json({
+        success: true,
+        user: sessionUser,
+        accessibleTrips,
+        message: 'Email verified successfully!',
+      });
+
+      response.cookies.set({
+        name: 'tulis_session',
+        value: sessionToken,
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 60 * 60 * 24 * 30,
+      });
+
+      return response;
+    }
+
+    // ----------------------------------------------------
+    // Action: RESEND-OTP
+    // ----------------------------------------------------
+    if (action === 'resend-otp') {
+      const { email } = body;
+      if (!email) {
+        return NextResponse.json({ success: false, error: 'Email is required' }, { status: 400 });
+      }
+
+      const cleanEmail = email.trim().toLowerCase();
+      const users = await sql`
+        SELECT id, name, email FROM users WHERE LOWER(email) = ${cleanEmail} LIMIT 1;
+      `;
+
+      if (users.length === 0) {
+        return NextResponse.json({ success: false, error: 'Account not found' }, { status: 404 });
+      }
+
+      const u = users[0];
+      const newOtp = generateNumericOtp();
+      const newExpiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+
+      await sql`
+        UPDATE users
+        SET verification_otp = ${newOtp},
+            verification_expires_at = ${newExpiresAt}
+        WHERE id = ${u.id};
+      `;
+
+      const emailRes = await sendVerificationOtpEmail(cleanEmail, newOtp, u.name);
+
+      return NextResponse.json({
+        success: true,
+        isSimulated: emailRes.isSimulated,
+        simulatedOtp: emailRes.isSimulated ? newOtp : undefined,
+        message: 'A new 6-digit verification code has been sent.',
+      });
+    }
+
+    // ----------------------------------------------------
+    // Action: LOGIN
+    // ----------------------------------------------------
+    if (action === 'login') {
+      const { email, password } = body;
+
+      if (!email || !password) {
+        return NextResponse.json({ success: false, error: 'Email and password are required.' }, { status: 400 });
+      }
+
+      const cleanEmail = email.trim().toLowerCase();
+
+      // Look up user by email or ID
+      const users = await sql`
+        SELECT id, name, email, password, password_hash as "passwordHash",
+               role, avatar, upi_id as "upiId", email_verified as "emailVerified"
+        FROM users
+        WHERE LOWER(email) = ${cleanEmail} OR id = ${email.trim()}
+        LIMIT 1;
+      `;
+
+      let dbUser: any = users.length > 0 ? users[0] : null;
+
+      // Fallback check demo users
+      if (!dbUser) {
+        const demo = DEMO_USERS.find(
+          (u) => u.email.toLowerCase() === cleanEmail || u.id.toLowerCase() === cleanEmail
+        );
+        if (demo) dbUser = demo;
+      }
+
+      if (!dbUser) {
+        return NextResponse.json({ success: false, error: 'Invalid email or password.' }, { status: 401 });
+      }
+
+      const isPasswordValid = await verifyPassword(
+        password,
+        dbUser.passwordHash || dbUser.password_hash || dbUser.password
+      );
+
+      if (!isPasswordValid) {
+        return NextResponse.json(
+          { success: false, error: 'Incorrect password. (Hint: Demo accounts use "password123")' },
+          { status: 401 }
+        );
+      }
+
+      const sessionUser: AuthSessionUser = {
+        id: dbUser.id,
+        name: dbUser.name,
+        email: dbUser.email,
+        role: dbUser.role || 'traveler',
+        avatar: dbUser.avatar || '',
+        upiId: dbUser.upiId || dbUser.upi_id || `${dbUser.name.toLowerCase().replace(/\s+/g, '')}@upi`,
+        emailVerified: Boolean(dbUser.emailVerified ?? dbUser.email_verified ?? true),
+      };
+
+      const sessionToken = await createSessionToken(sessionUser);
+      const accessibleTrips = await getUserAccessibleTrips(sessionUser.id, sessionUser.email);
+
+      const response = NextResponse.json({
+        success: true,
+        user: sessionUser,
+        accessibleTrips,
+        message: `Welcome back, ${sessionUser.name}!`,
+      });
+
+      response.cookies.set({
+        name: 'tulis_session',
+        value: sessionToken,
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 60 * 60 * 24 * 30,
+      });
+
+      return response;
+    }
+
+    // ----------------------------------------------------
+    // Action: LOGOUT
+    // ----------------------------------------------------
+    if (action === 'logout') {
+      const response = NextResponse.json({ success: true, message: 'Logged out successfully' });
+      response.cookies.delete('tulis_session');
+      return response;
+    }
+
+    return NextResponse.json({ success: false, error: 'Invalid action' }, { status: 400 });
+  } catch (err: any) {
+    console.error('Auth route error:', err);
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
 }

@@ -34,10 +34,10 @@ export const LiquidLogo: React.FC<LiquidLogoProps> = ({
           className="absolute inset-0 bg-gradient-to-tr from-emerald-500/25 via-teal-500/15 to-transparent pointer-events-none"
         />
 
-        {/* Official TripSync Emblem */}
+        {/* Official Tulis Emblem */}
         <img
           src="/fareshare-icon.png"
-          alt="TripSync Logo"
+          alt="Tulis Logo"
           className="relative z-10 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
         />
       </div>
@@ -45,7 +45,7 @@ export const LiquidLogo: React.FC<LiquidLogoProps> = ({
       {showText && (
         <div className="flex flex-col">
           <span className="font-sans font-bold text-base tracking-tight text-ink-primary leading-tight">
-            TripSync
+            Tulis
           </span>
           <span className="text-[9px] uppercase font-mono tracking-widest text-ink-muted">
             One Trip. One Ledger. Zero Confusion.

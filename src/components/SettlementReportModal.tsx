@@ -67,7 +67,7 @@ export const SettlementReportModal: React.FC<SettlementReportModalProps> = ({
 
   const handleCopyText = () => {
     let summary = `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-    summary += `TRIPSYNC — FINAL SETTLEMENT REPORT\n`;
+    summary += `TULIS — FINAL SETTLEMENT REPORT\n`;
     summary += `Trip: ${trip.title} (${trip.destination})\n`;
     summary += `Dates: ${trip.startDate} to ${trip.endDate}\n`;
     summary += `Total Outlay: ₹${audit.netIncurred.toLocaleString('en-IN')}\n`;
@@ -93,7 +93,7 @@ export const SettlementReportModal: React.FC<SettlementReportModalProps> = ({
         summary += `${idx + 1}. ${d.fromName} pays ${d.toName} → ₹${d.amount.toFixed(2)} (UPI: ${d.payeeUpiId || 'N/A'})\n`;
       });
     }
-    summary += `\nGenerated via TripSync Accounting Engine.`;
+    summary += `\nGenerated via Tulis Accounting Engine.`;
 
     navigator.clipboard.writeText(summary);
     alert('Copied printable settlement report text to clipboard!');
@@ -164,12 +164,12 @@ export const SettlementReportModal: React.FC<SettlementReportModalProps> = ({
             <div className="flex items-center gap-3.5">
               <img
                 src="/fareshare-icon.png"
-                alt="TripSync"
+                alt="Tulis"
                 className="w-12 h-12 rounded-2xl border border-white/10 shadow-subtle object-cover bg-zinc-950"
               />
               <div>
                 <span className="text-[11px] font-mono font-bold uppercase tracking-widest text-emerald-400">
-                  TripSync Audit Certificate
+                  Tulis Audit Certificate
                 </span>
                 <h1 className="text-2xl sm:text-3xl font-serif-display font-bold text-ink-primary mt-0.5">
                   {trip.title}
@@ -294,7 +294,7 @@ export const SettlementReportModal: React.FC<SettlementReportModalProps> = ({
 
         {/* Footer */}
         <div className="p-4 bg-surface-base border-t border-surface-hairline flex items-center justify-between text-xs text-ink-muted print:hidden">
-          <span>Official Event Ledger Digest · TripSync Engine</span>
+          <span>Official Event Ledger Digest · Tulis Engine</span>
           <button
             onClick={onClose}
             className="px-4 py-2 rounded-xl bg-surface-raised border border-surface-hairline text-ink-primary font-bold hover:bg-surface-hairline transition"

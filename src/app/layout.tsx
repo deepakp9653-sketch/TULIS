@@ -1,8 +1,9 @@
 import './globals.css';
 import type { Metadata } from 'next';
+import { GoogleAuthProvider } from '@/components/GoogleAuthProvider';
 
 export const metadata: Metadata = {
-  title: 'TripSync — One Trip. One Ledger. Zero Confusion.',
+  title: 'Tulis — One Trip. One Ledger. Zero Confusion.',
   description: 'FinTech Precision × Group Fairness. Dynamic Split Engine & Zero-Sum Settlement Platform.',
   icons: {
     icon: '/fareshare-icon.png',
@@ -19,7 +20,9 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className="bg-surface-base text-ink-primary min-h-screen antialiased">
-        {children}
+        <GoogleAuthProvider>
+          {children}
+        </GoogleAuthProvider>
       </body>
     </html>
   );

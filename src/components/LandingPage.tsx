@@ -21,6 +21,7 @@ import {
   Key,
   Check,
   TrendingUp,
+  FolderHeart,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { LiquidLogo } from './LiquidLogo';
@@ -32,6 +33,9 @@ interface LandingPageProps {
   onEnterApp: () => void;
   onOpenCreateTrip: () => void;
   onOpenJoinTrip: () => void;
+  currentUser?: any;
+  onOpenAuth?: () => void;
+  onOpenMyTrips?: () => void;
 }
 
 interface BarChartItem {
@@ -385,7 +389,14 @@ const HowItWorksSection: React.FC = () => {
   );
 };
 
-export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp, onOpenCreateTrip, onOpenJoinTrip }) => {
+export const LandingPage: React.FC<LandingPageProps> = ({
+  onEnterApp,
+  onOpenCreateTrip,
+  onOpenJoinTrip,
+  currentUser,
+  onOpenAuth,
+  onOpenMyTrips,
+}) => {
   const [sandboxNet, setSandboxNet] = useState<boolean>(false);
 
   return (
@@ -397,7 +408,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp, onOpenCrea
             <LiquidLogo size={36} />
             <div>
               <span className="font-sans font-bold text-lg tracking-tight text-ink-primary">
-                TripSync
+                Tulis
               </span>
               <span className="text-[10px] uppercase font-mono tracking-widest text-ink-muted block">
                 One Trip. One Ledger. Zero Confusion.
@@ -425,6 +436,29 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp, onOpenCrea
           </nav>
 
           <div className="flex items-center gap-2.5">
+            {/* User Session Button (My Trips or Log In) */}
+            {currentUser ? (
+              <button
+                onClick={onOpenMyTrips}
+                className="px-3 py-1.5 rounded-xl bg-surface-raised border border-brand-emerald/40 text-ink-primary hover:bg-surface-overlay transition-all text-xs font-semibold flex items-center gap-2 cursor-pointer shadow-subtle"
+                title={`Logged in as ${currentUser.name} (${currentUser.email})`}
+              >
+                <FolderHeart className="w-3.5 h-3.5 text-brand-emerald" />
+                <span className="max-w-[100px] truncate">
+                  {currentUser.name?.split(' ')[0] || 'My Trips'}
+                </span>
+              </button>
+            ) : onOpenAuth ? (
+              <button
+                onClick={onOpenAuth}
+                className="px-3 py-1.5 rounded-xl bg-surface-raised border border-surface-hairline text-ink-primary hover:bg-surface-overlay transition-all text-xs font-medium flex items-center gap-1.5 cursor-pointer"
+                title="Log in or register"
+              >
+                <Lock className="w-3.5 h-3.5 text-brand-emerald" />
+                <span>Log In</span>
+              </button>
+            ) : null}
+
             <LiquidGlassButton
               variant="subtle"
               size="sm"
@@ -740,7 +774,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp, onOpenCrea
               <div className="flex items-center gap-3">
                 <LiquidLogo size={32} />
                 <div>
-                  <span className="font-bold text-sm text-ink-primary block leading-tight">TripSync</span>
+                  <span className="font-bold text-sm text-ink-primary block leading-tight">Tulis</span>
                   <span className="text-[10px] text-ink-muted uppercase tracking-wider block font-mono">One Trip. One Ledger. Zero Confusion.</span>
                 </div>
               </div>
@@ -775,6 +809,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp, onOpenCrea
               <button onClick={onEnterApp} className="block text-xs text-ink-muted hover:text-ink-primary transition-colors cursor-pointer bg-transparent border-none p-0 text-left">
                 Open Dashboard
               </button>
+              {onOpenMyTrips && (
+                <button onClick={onOpenMyTrips} className="block text-xs text-brand-emerald hover:text-brand-emerald/80 transition-colors cursor-pointer bg-transparent border-none p-0 text-left font-medium">
+                  My Cloud Trips
+                </button>
+              )}
             </div>
 
             {/* Built With Column */}
@@ -789,7 +828,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp, onOpenCrea
           {/* Divider + Copyright */}
           <div className="pt-6 border-t border-surface-hairline flex flex-col sm:flex-row items-center justify-between gap-3">
             <p className="text-[11px] text-ink-muted font-mono">
-              © 2026 TripSync. Deterministic Double-Entry Group Ledger Engine.
+              © 2026 Tulis. Deterministic Double-Entry Group Ledger Engine.
             </p>
             <p className="text-[10px] text-ink-muted/60 font-mono">
               One Trip. One Ledger. Zero Confusion.
@@ -798,7 +837,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp, onOpenCrea
         </div>
       </footer>
 
-      {/* Oversized TRIPSYNC Wordmark — closing brand flourish with aurora backdrop */}
+      {/* Oversized TULIS Wordmark — closing brand flourish with aurora backdrop */}
       <div className="relative bg-surface-base overflow-hidden py-8 pb-12">
         {/* Aurora ambient glow behind wordmark */}
         <div className="absolute inset-0 w-full h-full pointer-events-none z-0">
@@ -817,7 +856,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp, onOpenCrea
           <span
             className="font-sans font-black text-[clamp(3rem,12vw,10rem)] leading-none tracking-tighter bg-gradient-to-r from-emerald-600/60 via-emerald-400/50 to-emerald-600/60 bg-clip-text text-transparent bg-[length:200%_100%] animate-[shimmer_6s_ease-in-out_infinite]"
           >
-            TRIPSYNC
+            TULIS
           </span>
         </motion.div>
       </div>

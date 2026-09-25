@@ -58,6 +58,9 @@ import { CreateTripModal } from '@/components/CreateTripModal';
 import { JoinTripModal } from '@/components/JoinTripModal';
 import { TripSwitcherModal } from '@/components/TripSwitcherModal';
 import { AuthModal } from '@/components/AuthModal';
+import { MyTripsModal } from '@/components/MyTripsModal';
+import { TripAccessGateModal } from '@/components/TripAccessGateModal';
+import { AuthSessionUser } from '@/lib/auth-service';
 import { UpiSetupModal } from '@/components/UpiSetupModal';
 import { ChaosDemoModal } from '@/components/ChaosDemoModal';
 import { WhatIfSimulatorModal } from '@/components/WhatIfSimulatorModal';
@@ -117,6 +120,9 @@ export default function Home() {
   const [isJoinTripOpen, setIsJoinTripOpen] = useState<boolean>(false);
   const [isTripSwitcherOpen, setIsTripSwitcherOpen] = useState<boolean>(false);
   const [isAuthOpen, setIsAuthOpen] = useState<boolean>(false);
+  const [isMyTripsOpen, setIsMyTripsOpen] = useState<boolean>(false);
+  const [isAccessGateOpen, setIsAccessGateOpen] = useState<boolean>(false);
+  const [currentUserSession, setCurrentUserSession] = useState<AuthSessionUser | null>(null);
   const [isUpiSetupOpen, setIsUpiSetupOpen] = useState<boolean>(false);
   const [isAccountSwitcherOpen, setIsAccountSwitcherOpen] = useState<boolean>(false);
   const [isShareTripOpen, setIsShareTripOpen] = useState<boolean>(false);
@@ -129,7 +135,7 @@ export default function Home() {
     const nextTheme = theme === 'dark' ? 'light' : 'dark';
     setTheme(nextTheme);
     if (typeof window !== 'undefined') {
-      localStorage.setItem('tripsync_theme', nextTheme);
+      localStorage.setItem('tulis_theme', nextTheme);
       if (nextTheme === 'dark') {
         document.documentElement.classList.add('dark');
         document.documentElement.classList.remove('light');
@@ -143,7 +149,7 @@ export default function Home() {
   // Hydrate persistent state on client mount (trips, settings, viewMode, URL deep-linking)
   useEffect(() => {
     try {
-      const savedTheme = (localStorage.getItem('tripsync_theme') as 'dark' | 'light') || 'dark';
+      const savedTheme = (localStorage.getItem('tulis_theme') as 'dark' | 'light') || 'dark';
       setTheme(savedTheme);
       if (savedTheme === 'dark') {
         document.documentElement.classList.add('dark');
@@ -155,8 +161,8 @@ export default function Home() {
 
       const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
       const urlTrip = urlParams?.get('trip') || urlParams?.get('join') || urlParams?.get('code');
-      const dedicatedMode = localStorage.getItem('tripsync_view_mode');
-      const dedicatedTripId = localStorage.getItem('tripsync_active_trip_id');
+      const dedicatedMode = localStorage.getItem('tulis_view_mode');
+      const dedicatedTripId = localStorage.getItem('tulis_active_trip_id');
 
       const saved = localStorage.getItem('group_ledger_session_v4');
       if (saved) {
@@ -296,6 +302,18 @@ export default function Home() {
       .catch((err) => console.warn('Could not sync cloud trips on load:', err));
   }, []);
 
+  // Verify user session on mount
+  useEffect(() => {
+    fetch('/api/auth?action=me')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.user) {
+          setCurrentUserSession(data.user);
+        }
+      })
+      .catch((err) => console.warn('Session verification error:', err));
+  }, []);
+
   // Persist state changes to localStorage (Only runs AFTER client hydration so it NEVER overwrites saved session on mount)
   useEffect(() => {
     if (!isHydrated) return;
@@ -315,9 +333,9 @@ export default function Home() {
           eventsMap,
         })
       );
-      localStorage.setItem('tripsync_view_mode', viewMode);
+      localStorage.setItem('tulis_view_mode', viewMode);
       if (viewMode === 'app') {
-        localStorage.setItem('tripsync_active_trip_id', activeTripId);
+        localStorage.setItem('tulis_active_trip_id', activeTripId);
       }
     } catch (e) {
       console.warn('Could not save session to localStorage:', e);
@@ -531,8 +549,8 @@ export default function Home() {
     setActiveTripId(tripId);
     setViewMode('app');
     try {
-      localStorage.setItem('tripsync_view_mode', 'app');
-      localStorage.setItem('tripsync_active_trip_id', tripId);
+      localStorage.setItem('tulis_view_mode', 'app');
+      localStorage.setItem('tulis_active_trip_id', tripId);
       const saved = localStorage.getItem('group_ledger_session_v4');
       if (saved) {
         const parsed = JSON.parse(saved);
@@ -550,12 +568,45 @@ export default function Home() {
     }
   };
 
-  // Explicit Logout handler: clears app view mode so refresh stays on landing page only after logging out
-  const handleLogout = () => {
-    setViewMode('landing');
+  const loadTripById = async (targetTripId: string) => {
     try {
-      localStorage.setItem('tripsync_view_mode', 'landing');
-      localStorage.removeItem('tripsync_active_trip_id');
+      const res = await fetch(`/api/trips?tripId=${targetTripId}`);
+      const json = await res.json();
+      if (json.success && json.trip) {
+        const fetchedTrip: Trip = json.trip;
+        const allParts: Participant[] = json.participants || [];
+
+        setTrips((prev) => [fetchedTrip, ...prev.filter((t) => t.id !== fetchedTrip.id)]);
+        setParticipantsMap((prev) => ({ ...prev, [fetchedTrip.id]: allParts }));
+        if (json.bookings) setBookingsMap((prev) => ({ ...prev, [fetchedTrip.id]: json.bookings }));
+        if (json.expenses) setExpensesMap((prev) => ({ ...prev, [fetchedTrip.id]: json.expenses }));
+        if (json.events) setEventsMap((prev) => ({ ...prev, [fetchedTrip.id]: json.events }));
+
+        if (allParts.length > 0) {
+          setCurrentUserId(allParts[0].id);
+        }
+        enterAppMode(fetchedTrip.id, fetchedTrip.inviteCode);
+        return true;
+      }
+    } catch (err) {
+      console.warn('Load trip by ID error:', err);
+    }
+    return false;
+  };
+
+  // Explicit Logout handler: clears session, auth cookies, and resets to landing
+  const handleLogout = async () => {
+    setViewMode('landing');
+    setCurrentUserSession(null);
+    setIsMyTripsOpen(false);
+    try {
+      await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'logout' }),
+      });
+      localStorage.setItem('tulis_view_mode', 'landing');
+      localStorage.removeItem('tulis_active_trip_id');
       const saved = localStorage.getItem('group_ledger_session_v4');
       if (saved) {
         const parsed = JSON.parse(saved);
@@ -565,10 +616,10 @@ export default function Home() {
       if (typeof window !== 'undefined') {
         window.history.replaceState(null, '', window.location.pathname);
       }
+      triggerToast('Logged out successfully.');
     } catch (e) {
       console.warn('Could not persist logout state:', e);
     }
-    triggerToast('Logged out of dashboard. Returned to homepage.');
   };
 
   // Creator-First Trip Creation
@@ -1567,7 +1618,7 @@ export default function Home() {
       <div className="min-h-screen bg-surface-base flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <LiquidLogo size={42} showText={false} />
-          <span className="text-xs font-mono text-ink-muted animate-pulse">Syncing TripSync Ledger...</span>
+          <span className="text-xs font-mono text-ink-muted animate-pulse">Syncing Tulis Ledger...</span>
         </div>
       </div>
     );
@@ -1580,6 +1631,9 @@ export default function Home() {
           onEnterApp={() => setIsDashboardAccessOpen(true)}
           onOpenCreateTrip={() => setIsCreateTripOpen(true)}
           onOpenJoinTrip={() => setIsJoinTripOpen(true)}
+          currentUser={currentUserSession}
+          onOpenAuth={() => setIsAuthOpen(true)}
+          onOpenMyTrips={() => setIsMyTripsOpen(true)}
         />
 
         <DashboardAccessModal
@@ -1642,6 +1696,37 @@ export default function Home() {
           onClose={() => setIsJoinTripOpen(false)}
           onJoinTrip={handleJoinTrip}
         />
+
+        <AuthModal
+          isOpen={isAuthOpen}
+          onClose={() => setIsAuthOpen(false)}
+          onAuthSuccess={(sessionUser) => {
+            setCurrentUserSession(sessionUser);
+            setIsAuthOpen(false);
+            setIsMyTripsOpen(true);
+            triggerToast(`Welcome, ${sessionUser.name}! Account authenticated.`);
+          }}
+        />
+
+        <MyTripsModal
+          isOpen={isMyTripsOpen}
+          onClose={() => setIsMyTripsOpen(false)}
+          currentUser={currentUserSession}
+          currentTripId={activeTripId}
+          onSelectTrip={async (selectedTripId) => {
+            await loadTripById(selectedTripId);
+            setIsMyTripsOpen(false);
+          }}
+          onCreateNewTrip={() => {
+            setIsMyTripsOpen(false);
+            setIsCreateTripOpen(true);
+          }}
+          onJoinTrip={() => {
+            setIsMyTripsOpen(false);
+            setIsJoinTripOpen(true);
+          }}
+          onLogout={handleLogout}
+        />
       </>
     );
   }
@@ -1676,6 +1761,8 @@ export default function Home() {
           setExplainParticipantId(pid);
           setIsExplainBalanceOpen(true);
         }}
+        onOpenMyTrips={() => setIsMyTripsOpen(true)}
+        currentUserSession={currentUserSession}
         onGoToLanding={handleLogout}
       >
         <AnimatePresence mode="wait">
@@ -1870,13 +1957,59 @@ export default function Home() {
         onOpenJoinTrip={() => setIsJoinTripOpen(true)}
       />
 
-      {/* Auth & Password Modal */}
+      {/* Auth & Login Modal (Google OAuth & Email OTP) */}
       <AuthModal
         isOpen={isAuthOpen}
         onClose={() => setIsAuthOpen(false)}
-        participants={participants}
-        onLogin={handleLogin}
-        onRegister={handleRegister}
+        onAuthSuccess={(sessionUser) => {
+          setCurrentUserSession(sessionUser);
+          setIsAuthOpen(false);
+          setIsMyTripsOpen(true);
+          triggerToast(`Welcome, ${sessionUser.name}! Account authenticated.`);
+        }}
+      />
+
+      {/* User Cloud Trips Drawer / Modal */}
+      <MyTripsModal
+        isOpen={isMyTripsOpen}
+        onClose={() => setIsMyTripsOpen(false)}
+        currentUser={currentUserSession}
+        currentTripId={activeTripId}
+        onSelectTrip={async (selectedTripId) => {
+          await loadTripById(selectedTripId);
+          setIsMyTripsOpen(false);
+        }}
+        onCreateNewTrip={() => {
+          setIsMyTripsOpen(false);
+          setIsCreateTripOpen(true);
+        }}
+        onJoinTrip={() => {
+          setIsMyTripsOpen(false);
+          setIsJoinTripOpen(true);
+        }}
+        onLogout={handleLogout}
+      />
+
+      {/* Private Trip Access Gate Modal */}
+      <TripAccessGateModal
+        isOpen={isAccessGateOpen}
+        tripTitle={trip?.title}
+        onUnlockWithCode={async (code) => {
+          const res = await fetch(`/api/trips?inviteCode=${code}`);
+          const data = await res.json();
+          if (data.success && data.trip) {
+            setIsAccessGateOpen(false);
+            enterAppMode(data.trip.id, code);
+            triggerToast(`Unlocked trip "${data.trip.title}"!`);
+            return true;
+          }
+          return false;
+        }}
+        onOpenAuth={() => {
+          setIsAccessGateOpen(false);
+          setIsAuthOpen(true);
+        }}
+        onGoHome={handleLogout}
       />
 
       {/* Post-Login UPI VPA & QR Code Setup Modal */}

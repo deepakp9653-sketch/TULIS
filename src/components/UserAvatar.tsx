@@ -11,7 +11,7 @@ interface UserAvatarProps {
   showBorder?: boolean;
 }
 
-// Curated modern muted palettes for TripSync FinTech aesthetic
+// Curated modern muted palettes for Tulis FinTech aesthetic
 const AVATAR_PALETTES = [
   {
     bg: 'from-emerald-500/20 via-emerald-600/15 to-surface-inset',
