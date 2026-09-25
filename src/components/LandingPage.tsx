@@ -451,11 +451,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             ) : onOpenAuth ? (
               <button
                 onClick={onOpenAuth}
-                className="px-3 py-1.5 rounded-xl bg-surface-raised border border-surface-hairline text-ink-primary hover:bg-surface-overlay transition-all text-xs font-medium flex items-center gap-1.5 cursor-pointer"
-                title="Log in or register"
+                className="px-3 py-1.5 rounded-xl bg-surface-raised border border-brand-emerald/40 text-brand-emerald hover:bg-surface-overlay transition-all text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-subtle"
+                title="Sign in with Email OTP via Resend or Google"
               >
-                <Lock className="w-3.5 h-3.5 text-brand-emerald" />
-                <span>Log In</span>
+                <Sparkles className="w-3.5 h-3.5 text-brand-emerald" />
+                <span>Sign In with OTP</span>
               </button>
             ) : null}
 
@@ -536,6 +536,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   Open Dashboard
                 </LiquidGlassButton>
               </div>
+
+              {!currentUser && onOpenAuth && (
+                <div className="pt-1">
+                  <button
+                    onClick={onOpenAuth}
+                    className="inline-flex items-center gap-2 text-xs font-semibold text-brand-emerald hover:underline cursor-pointer"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Have an account? Sign in passwordless with 6-Digit Email OTP →</span>
+                  </button>
+                </div>
+              )}
 
               {/* Quick Metrics Cards */}
               <div className="grid grid-cols-3 gap-6 pt-6 border-t border-surface-hairline max-w-lg">

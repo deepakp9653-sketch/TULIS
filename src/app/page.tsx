@@ -1761,7 +1761,15 @@ export default function Home() {
           setExplainParticipantId(pid);
           setIsExplainBalanceOpen(true);
         }}
-        onOpenMyTrips={() => setIsMyTripsOpen(true)}
+        onOpenMyTrips={() => {
+          if (!currentUserSession) {
+            setIsAuthOpen(true);
+            triggerToast('Sign in with Email OTP to access your cloud trips.');
+          } else {
+            setIsMyTripsOpen(true);
+          }
+        }}
+        onOpenAuth={() => setIsAuthOpen(true)}
         currentUserSession={currentUserSession}
         onGoToLanding={handleLogout}
       >

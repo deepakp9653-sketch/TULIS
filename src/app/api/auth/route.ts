@@ -280,6 +280,74 @@ export async function POST(req: Request) {
     }
 
     // ----------------------------------------------------
+    // Action: SEND-OTP (Passwordless Sign-In & Verification)
+    // ----------------------------------------------------
+    if (action === 'send-otp' || action === 'login-otp') {
+      const { email } = body;
+      if (!email) {
+        return NextResponse.json({ success: false, error: 'Email address is required.' }, { status: 400 });
+      }
+
+      const cleanEmail = email.trim().toLowerCase();
+      if (!cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+        return NextResponse.json({ success: false, error: 'Please enter a valid email address.' }, { status: 400 });
+      }
+
+      const otp = generateNumericOtp();
+      const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+
+      const users = await sql`
+        SELECT id, name, email FROM users WHERE LOWER(email) = ${cleanEmail} LIMIT 1;
+      `;
+
+      let userName = 'Traveler';
+
+      if (users.length > 0) {
+        const u = users[0];
+        userName = u.name || 'Traveler';
+        await sql`
+          UPDATE users
+          SET verification_otp = ${otp},
+              verification_expires_at = ${expiresAt}
+          WHERE id = ${u.id};
+        `;
+      } else {
+        const handle = cleanEmail.split('@')[0];
+        userName = handle.charAt(0).toUpperCase() + handle.slice(1);
+        const userId = 'u-' + Date.now();
+        const defaultUpi = `${handle}@upi`;
+        const tempHash = await hashPassword('password123');
+
+        await sql`
+          INSERT INTO users (id, name, email, password_hash, password, role, upi_id, email_verified, verification_otp, verification_expires_at)
+          VALUES (
+            ${userId},
+            ${userName},
+            ${cleanEmail},
+            ${tempHash},
+            'password123',
+            'traveler',
+            ${defaultUpi},
+            FALSE,
+            ${otp},
+            ${expiresAt}
+          );
+        `;
+      }
+
+      const emailRes = await sendVerificationOtpEmail(cleanEmail, otp, userName);
+
+      return NextResponse.json({
+        success: true,
+        requiresVerification: true,
+        email: cleanEmail,
+        isSimulated: emailRes.isSimulated,
+        simulatedOtp: emailRes.isSimulated ? otp : undefined,
+        message: '6-digit verification code sent to your email.',
+      });
+    }
+
+    // ----------------------------------------------------
     // Action: LOGIN
     // ----------------------------------------------------
     if (action === 'login') {

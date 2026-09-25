@@ -277,17 +277,22 @@ When refund amount $R$ is confirmed:
 ### 3.3 Authentication & Session Security Subsystem
 
 Tulis features a production-grade multi-modal authentication and access control architecture:
-1. **Google OAuth 2.0:** One-tap sign-in. Wrapped at the root layout with `<GoogleAuthProvider>` (`@react-oauth/google`). The client obtains a credential JWT, posts it to `/api/auth/google`, and the server validates the signature and audience against Google’s official OAuth2 tokeninfo service (`https://oauth2.googleapis.com/tokeninfo`).
-2. **Email & Password / OTP:** Users can authenticate via salted bcrypt password hash or request a 6-digit numeric verification OTP dispatched via the Resend API (`src/lib/email-service.ts`) with a 10-minute expiry window.
-3. **Stateless JWT Session Management:**
+1. **Passwordless Email OTP Verification (Default Flow):**
+   - Users enter their email address on Landing Page or DashboardShell to request a real 6-digit numeric OTP (`POST /api/auth` with `{ action: 'send-otp' }`).
+   - Dispatched in real time via the Resend API (`src/lib/email-service.ts`) with a 15-minute expiration timestamp.
+   - User inputs the 6-digit code which auto-submits upon completion (`POST /api/auth` with `{ action: 'verify-otp' }`).
+   - On verification, `email_verified` is flagged `TRUE` in Neon DB, an HTTP-only signed JWT session cookie (`tulis_session`) is provisioned, and the user gains immediate workspace access.
+2. **Google OAuth 2.0:** One-tap sign-in. Wrapped at the root layout with `<GoogleAuthProvider>` (`@react-oauth/google`). The client obtains a credential JWT, posts it to `/api/auth/google`, and the server validates the signature and audience against Google’s official OAuth2 tokeninfo service (`https://oauth2.googleapis.com/tokeninfo`).
+3. **Password & One-Click Demo Personas:** Users can alternatively authenticate via salted bcrypt password hash or switch between demo personas with 1 click for instant evaluator testing.
+4. **Stateless JWT Session Management:**
    - Auth state is encapsulated in an HTTP-only, secure, same-site cookie named `tulis_session`.
    - Signed using `jose` with `HS256` and the server secret `SESSION_SECRET` (fallback `JWT_SECRET`).
    - Contains payload: `{ id, name, email, avatar, role, upiId, emailVerified }`.
    - Validated on client hydration via `GET /api/auth?action=me`.
    - Explicitly invalidated on logout via `POST /api/auth` with `{ action: 'logout' }`.
-4. **My Cloud Trips Dashboard (`MyTripsModal.tsx`):**
+5. **My Cloud Trips Dashboard (`MyTripsModal.tsx`):**
    - Authenticated users can access their cloud-persisted trips (`GET /api/trips?myTrips=true`), seamlessly switch between active workspaces, create new trips, or join squad trips.
-5. **Private Trip Access Gating (`TripAccessGateModal.tsx`):**
+6. **Private Trip Access Gating (`TripAccessGateModal.tsx`):**
    - Protects private trip ledgers from unauthorized viewing unless the user is an authenticated roster participant or enters the trip's 6-character invite code.
 
 ---
@@ -295,10 +300,13 @@ Tulis features a production-grade multi-modal authentication and access control 
 ### 3.4 Transactional Email Infrastructure (Resend)
 
 Built in [`src/lib/email-service.ts`](file:///c:/Users/heena/Downloads/hackcelestial/src/lib/email-service.ts):
-- **Provider:** Resend API (`api.resend.com`).
+- **Provider:** Resend API (`api.resend.com`) using active production key.
 - **Verified Sender:** `Tulis <onboarding@resend.dev>`.
+- **Supported Email Triggers:**
+  - 6-Digit Email OTP Verification (`sendVerificationOtpEmail`)
+  - Squad Trip Invitations with deep links (`sendTripInviteEmail`)
 - **Template Design:** Responsive, dark-themed HTML email adhering to the Tulis design system (`#12160F` background, `#5FA97D` mint accents, `#1B2119` cards, dashed code box with `JetBrains Mono` font).
-- **Graceful Fallback:** If the Resend API rate limits or returns an error on unverified domains, the service safely enters **simulated delivery mode**, logging the generated OTP to the server console and allowing registration to proceed without crashing the user flow.
+- **Graceful Fallback:** If the Resend API rate limits or returns an error on unverified test domains, the service safely enters **simulated delivery mode**, logging the generated OTP and surfacing a 1-click Auto-fill sandbox button in the UI so registration and login never block or crash.
 
 ---
 

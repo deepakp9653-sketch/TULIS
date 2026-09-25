@@ -70,6 +70,7 @@ interface DashboardShellProps {
   onOpenSettlementReport?: () => void;
   onOpenExplainBalance?: (participantId: string) => void;
   onOpenMyTrips?: () => void;
+  onOpenAuth?: () => void;
   currentUserSession?: any;
   onGoToLanding?: () => void;
 }
@@ -101,6 +102,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
   onOpenSettlementReport,
   onOpenExplainBalance,
   onOpenMyTrips,
+  onOpenAuth,
   currentUserSession,
   onGoToLanding,
 }) => {
@@ -332,25 +334,43 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
           </div>
 
           {/* User Profile Footer */}
-          <div className="p-3 border-t border-surface-hairline bg-surface-base/40">
+          <div className="p-3 border-t border-surface-hairline bg-surface-base/40 space-y-2">
+            {!currentUserSession && onOpenAuth && (
+              <button
+                onClick={onOpenAuth}
+                className="w-full p-2 rounded-xl bg-brand-emerald/15 hover:bg-brand-emerald/25 border border-brand-emerald/30 text-xs font-bold text-brand-emerald flex items-center justify-center gap-2 transition-all cursor-pointer shadow-subtle"
+                title="Sign in with Email OTP via Resend"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Verify with Email OTP</span>
+              </button>
+            )}
+
             <button
               onClick={onOpenAccountSwitcher}
               className="w-full p-2 rounded-xl bg-surface-raised border border-surface-hairline hover:border-brand-emerald/50 transition-all flex items-center justify-between text-left group cursor-pointer"
             >
               <div className="flex items-center gap-2.5 min-w-0">
                 <UserAvatar
-                  name={currentUser?.name}
-                  id={currentUser?.id}
-                  avatarUrl={currentUser?.avatarUrl}
+                  name={currentUserSession ? currentUserSession.name : currentUser?.name}
+                  id={currentUserSession ? currentUserSession.id : currentUser?.id}
+                  avatarUrl={currentUserSession ? currentUserSession.avatar : currentUser?.avatarUrl}
                   size="sm"
                   className="shrink-0"
                 />
                 <div className="min-w-0">
-                  <span className="text-xs font-semibold text-ink-primary truncate block">
-                    {currentUser?.name}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-semibold text-ink-primary truncate block">
+                      {currentUserSession ? currentUserSession.name : currentUser?.name}
+                    </span>
+                    {currentUserSession && (
+                      <span title="Email OTP Verified">
+                        <ShieldCheck className="w-3 h-3 text-brand-emerald shrink-0" />
+                      </span>
+                    )}
+                  </div>
                   <span className="text-[10px] text-ink-muted block truncate font-mono">
-                    Switch Account
+                    {currentUserSession ? currentUserSession.email : 'Switch Account'}
                   </span>
                 </div>
               </div>
@@ -438,6 +458,26 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
                   </motion.div>
                 </motion.button>
               )}
+
+              {/* Authenticated User Status or OTP Trigger */}
+              {currentUserSession ? (
+                <div
+                  className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-brand-emerald/10 border border-brand-emerald/25 text-xs font-semibold text-brand-emerald"
+                  title={`Authenticated as ${currentUserSession.email} via Resend OTP / Google`}
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span className="truncate max-w-[120px]">{currentUserSession.name?.split(' ')[0]}</span>
+                </div>
+              ) : onOpenAuth ? (
+                <button
+                  onClick={onOpenAuth}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-brand-emerald text-white hover:bg-brand-emerald/90 text-xs font-bold transition-all shadow-subtle cursor-pointer"
+                  title="Verify identity with 6-digit Email OTP via Resend"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Sign In with OTP</span>
+                </button>
+              ) : null}
 
               {/* My Trips Cloud Switcher Button */}
               {onOpenMyTrips && (
