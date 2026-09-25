@@ -41,7 +41,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [otp, setOtp] = useState('');
-  const [simulatedOtpNotice, setSimulatedOtpNotice] = useState<string | null>(null);
 
   const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
@@ -50,7 +49,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const resetMessages = () => {
     setErrorMessage(null);
     setSuccessMessage(null);
-    setSimulatedOtpNotice(null);
   };
 
   // Google OAuth Success Handler
@@ -104,11 +102,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         throw new Error(data.error || 'Failed to dispatch verification code');
       }
 
-      if (data.isSimulated && data.simulatedOtp) {
-        setSimulatedOtpNotice(`Dev Sandbox Code: ${data.simulatedOtp}`);
-      }
-
-      setSuccessMessage('6-digit verification code dispatched via Resend!');
+      setSuccessMessage('6-digit verification code dispatched via Resend! Check your inbox.');
       setMode('otp');
     } catch (err: any) {
       setErrorMessage(err.message);
@@ -167,11 +161,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         throw new Error(data.error || 'Registration failed');
       }
 
-      if (data.isSimulated && data.simulatedOtp) {
-        setSimulatedOtpNotice(`Dev Sandbox Code: ${data.simulatedOtp}`);
-      }
-
-      setSuccessMessage('Verification code sent to your email via Resend!');
+      setSuccessMessage('Verification code sent to your email via Resend! Check your inbox.');
       setMode('otp');
     } catch (err: any) {
       setErrorMessage(err.message);
@@ -226,10 +216,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       if (!res.ok || !data.success) {
         throw new Error(data.error || 'Could not resend OTP code');
       }
-      if (data.isSimulated && data.simulatedOtp) {
-        setSimulatedOtpNotice(`Dev Sandbox Code: ${data.simulatedOtp}`);
-      }
-      setSuccessMessage('A fresh 6-digit verification code has been dispatched via Resend.');
+      setSuccessMessage('A fresh 6-digit verification code has been dispatched via Resend. Check your inbox.');
     } catch (err: any) {
       setErrorMessage(err.message);
     } finally {
@@ -322,24 +309,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           </div>
         )}
 
-        {simulatedOtpNotice && (
-          <div className="mb-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs flex items-center justify-between">
-            <span className="font-mono font-semibold">{simulatedOtpNotice}</span>
-            <button
-              type="button"
-              onClick={() => {
-                const match = simulatedOtpNotice.match(/\d{6}/);
-                if (match) {
-                  setOtp(match[0]);
-                  handleVerifyOtp(undefined, match[0]);
-                }
-              }}
-              className="px-2 py-0.5 bg-amber-500/20 hover:bg-amber-500/30 rounded text-[11px] font-bold cursor-pointer"
-            >
-              Auto-fill & Verify
-            </button>
-          </div>
-        )}
 
         {/* Mode Switcher Tabs (Email OTP vs Password vs Sign Up) */}
         {mode !== 'otp' && (

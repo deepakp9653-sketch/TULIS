@@ -149,15 +149,24 @@ export async function POST(req: Request) {
 
       // Send verification email via Resend
       const emailRes = await sendVerificationOtpEmail(cleanEmail, otp, name.trim());
+      if (!emailRes.success) {
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              emailRes.error ||
+              'Could not dispatch verification email via Resend. Please check your email address.',
+          },
+          { status: 502 }
+        );
+      }
 
       return NextResponse.json({
         success: true,
         requiresVerification: true,
         userId,
         email: cleanEmail,
-        isSimulated: emailRes.isSimulated,
-        simulatedOtp: emailRes.isSimulated ? otp : undefined,
-        message: 'Verification code sent to your email.',
+        message: 'Verification code sent to your email via Resend.',
       });
     }
 
@@ -270,12 +279,21 @@ export async function POST(req: Request) {
       `;
 
       const emailRes = await sendVerificationOtpEmail(cleanEmail, newOtp, u.name);
+      if (!emailRes.success) {
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              emailRes.error ||
+              'Could not dispatch verification email via Resend. Please check your email address.',
+          },
+          { status: 502 }
+        );
+      }
 
       return NextResponse.json({
         success: true,
-        isSimulated: emailRes.isSimulated,
-        simulatedOtp: emailRes.isSimulated ? newOtp : undefined,
-        message: 'A new 6-digit verification code has been sent.',
+        message: 'A fresh 6-digit verification code has been dispatched via Resend.',
       });
     }
 
@@ -336,14 +354,23 @@ export async function POST(req: Request) {
       }
 
       const emailRes = await sendVerificationOtpEmail(cleanEmail, otp, userName);
+      if (!emailRes.success) {
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              emailRes.error ||
+              'Could not dispatch verification email via Resend. Please check your email address.',
+          },
+          { status: 502 }
+        );
+      }
 
       return NextResponse.json({
         success: true,
         requiresVerification: true,
         email: cleanEmail,
-        isSimulated: emailRes.isSimulated,
-        simulatedOtp: emailRes.isSimulated ? otp : undefined,
-        message: '6-digit verification code sent to your email.',
+        message: '6-digit verification code sent to your email via Resend.',
       });
     }
 

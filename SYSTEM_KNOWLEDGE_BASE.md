@@ -300,13 +300,18 @@ Tulis features a production-grade multi-modal authentication and access control 
 ### 3.4 Transactional Email Infrastructure (Resend)
 
 Built in [`src/lib/email-service.ts`](file:///c:/Users/heena/Downloads/hackcelestial/src/lib/email-service.ts):
-- **Provider:** Resend API (`api.resend.com`) using active production key.
+- **Provider:** Resend API (`api.resend.com`) using configured production key (`RESEND_API_KEY`).
 - **Verified Sender:** `Tulis <onboarding@resend.dev>`.
 - **Supported Email Triggers:**
   - 6-Digit Email OTP Verification (`sendVerificationOtpEmail`)
   - Squad Trip Invitations with deep links (`sendTripInviteEmail`)
-- **Template Design:** Responsive, dark-themed HTML email adhering to the Tulis design system (`#12160F` background, `#5FA97D` mint accents, `#1B2119` cards, dashed code box with `JetBrains Mono` font).
-- **Graceful Fallback:** If the Resend API rate limits or returns an error on unverified test domains, the service safely enters **simulated delivery mode**, logging the generated OTP and surfacing a 1-click Auto-fill sandbox button in the UI so registration and login never block or crash.
+- **Template Design:** Responsive, high-fidelity dark-themed HTML email strictly styled with Tulis design tokens:
+  - Publicly hosted Tulis logo header (`https://raw.githubusercontent.com/deepakp9653-sketch/TULIS/main/public/tulis-icon.png`) with clean brand typography.
+  - `#0A0D08` outer canvas, `#141912` elevated card surface, and `#263323` subtle borders.
+  - Top 3px emerald gradient accent bar (`#2D6A4F` $\to$ `#5FA97D` $\to$ `#84CC16`).
+  - Centered monospace 6-digit OTP code container with dashed `#3E7D5A` border and `letter-spacing: 12px` on `#0C100A` inset.
+  - Security badges, 15-minute expiration warning, fraud prevention notice, and platform benefit highlights.
+- **Strict Real-Delivery Policy:** All sandbox / simulated OTP banners and auto-fill buttons have been completely decommissioned. Verification requires the real 6-digit code delivered via Resend. If Resend delivery fails, the API responds with a descriptive HTTP 502 error requiring verification of the destination email address.
 
 ---
 
