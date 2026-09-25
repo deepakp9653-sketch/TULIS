@@ -75,7 +75,7 @@ export const CreateTripModal: React.FC<CreateTripModalProps> = ({
       ...prev,
       {
         name: newTravelerName,
-        email: `${newTravelerName.toLowerCase().replace(/\s+/g, '')}@fareshare.in`,
+        email: `${newTravelerName.toLowerCase().replace(/\s+/g, '')}@tulis.in`,
         upiId: newTravelerUpi || `${newTravelerName.toLowerCase().replace(/\s+/g, '')}@upi`,
         roomTier: 'standard',
         avatarUrl: newTravelerAvatarUrl.trim() || undefined,
@@ -97,7 +97,7 @@ export const CreateTripModal: React.FC<CreateTripModalProps> = ({
     onCreateTrip(
       {
         name: creatorName.trim(),
-        email: creatorEmail.trim() || `${creatorName.toLowerCase().replace(/\s+/g, '')}@fareshare.in`,
+        email: creatorEmail.trim() || `${creatorName.toLowerCase().replace(/\s+/g, '')}@tulis.in`,
         upiId: creatorUpi.trim() || `${creatorName.toLowerCase().replace(/\s+/g, '')}@okicici`,
         avatarUrl: creatorAvatarUrl.trim() || undefined,
       },
@@ -191,7 +191,7 @@ export const CreateTripModal: React.FC<CreateTripModalProps> = ({
                       type="email"
                       value={creatorEmail}
                       onChange={(e) => setCreatorEmail(e.target.value)}
-                      placeholder="deepak@fareshare.in"
+                      placeholder="deepak@tulis.in"
                       className="w-full bg-surface-base border border-surface-hairline rounded-xl px-3 py-2.5 text-xs text-ink-primary focus:border-emerald-500 outline-none"
                     />
                   </div>

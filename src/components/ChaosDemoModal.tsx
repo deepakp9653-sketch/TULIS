@@ -149,7 +149,7 @@ export const ChaosDemoModal: React.FC<ChaosDemoModalProps> = ({
                 </span>
               </div>
               <p className="text-xs text-ink-secondary mt-0.5">
-                Proof that FareShare maintains mathematical consistency and zero-sum invariant under continuous chaotic changes.
+                Proof that Tulis maintains mathematical consistency and zero-sum invariant under continuous chaotic changes.
               </p>
             </div>
           </div>

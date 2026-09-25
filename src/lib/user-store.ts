@@ -1,4 +1,4 @@
-// User & Authentication Store for FareShare
+// User & Authentication Store for Tulis
 import { sql } from '@/lib/db';
 
 export interface UserAccount {
@@ -16,7 +16,7 @@ export const DEMO_USERS: UserAccount[] = [
   {
     id: 'p1',
     name: 'Srushti Sharma',
-    email: 'srushti@fareshare.in',
+    email: 'srushti@tulis.in',
     password: 'password123',
     role: 'organizer',
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop&crop=faces',
@@ -26,7 +26,7 @@ export const DEMO_USERS: UserAccount[] = [
   {
     id: 'p2',
     name: 'Ananya Iyer',
-    email: 'ananya@fareshare.in',
+    email: 'ananya@tulis.in',
     password: 'password123',
     role: 'traveler',
     avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=100&h=100&fit=crop&crop=faces',
@@ -36,7 +36,7 @@ export const DEMO_USERS: UserAccount[] = [
   {
     id: 'p3',
     name: 'Rohan Mehta',
-    email: 'rohan@fareshare.in',
+    email: 'rohan@tulis.in',
     password: 'password123',
     role: 'traveler',
     avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=faces',
@@ -46,7 +46,7 @@ export const DEMO_USERS: UserAccount[] = [
   {
     id: 'p4',
     name: 'Priya Patel',
-    email: 'priya@fareshare.in',
+    email: 'priya@tulis.in',
     password: 'password123',
     role: 'traveler',
     avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop&crop=faces',
@@ -56,7 +56,7 @@ export const DEMO_USERS: UserAccount[] = [
   {
     id: 'p5',
     name: 'Diya Verma',
-    email: 'diya@fareshare.in',
+    email: 'diya@tulis.in',
     password: 'password123',
     role: 'traveler',
     avatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=100&h=100&fit=crop&crop=faces',
@@ -66,7 +66,7 @@ export const DEMO_USERS: UserAccount[] = [
   {
     id: 'p6',
     name: 'Kabir Roy',
-    email: 'kabir@fareshare.in',
+    email: 'kabir@tulis.in',
     password: 'password123',
     role: 'traveler',
     avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop&crop=faces',
@@ -113,7 +113,7 @@ export async function authenticateUser(emailOrId: string, passwordAttempt: strin
   const demo = DEMO_USERS.find(
     (u) =>
       u.email.toLowerCase() === normalized ||
-      u.email.toLowerCase().replace('@grouptrip.in', '@fareshare.in') === normalized ||
+      u.email.toLowerCase().replace('@grouptrip.in', '@tulis.in') === normalized ||
       u.id.toLowerCase() === normalized
   );
 

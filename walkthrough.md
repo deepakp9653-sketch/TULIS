@@ -1,6 +1,6 @@
 # Walkthrough: Production Authentication & Trip Scoping Architecture
 
-We have integrated full production user authentication, account-scoped trip dashboards, Google OAuth 2.0 integration, and Resend transactional email verification for **Tulis** (`https://meridian-debuggers.vercel.app/`).
+We have integrated full production user authentication, account-scoped trip dashboards, Google OAuth 2.0 integration, and Resend transactional email verification for **Tulis** (`https://tulis.vercel.app/`).
 
 ---
 

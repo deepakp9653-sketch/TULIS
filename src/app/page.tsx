@@ -453,7 +453,7 @@ export default function Home() {
     id: currentUserId || 'p-default',
     tripId: trip?.id || 'trip-default',
     name: 'Traveler',
-    email: 'traveler@fareshare.in',
+    email: 'traveler@tulis.in',
     avatarUrl: '',
     isOrganizer: false,
     status: 'active' as const,

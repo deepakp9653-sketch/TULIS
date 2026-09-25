@@ -163,7 +163,7 @@ export const SettlementReportModal: React.FC<SettlementReportModalProps> = ({
           <div className="border-b-2 border-surface-hairline pb-4 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
             <div className="flex items-center gap-3.5">
               <img
-                src="/fareshare-icon.png"
+                src="/tulis-icon.png"
                 alt="Tulis"
                 className="w-12 h-12 rounded-2xl border border-white/10 shadow-subtle object-cover bg-zinc-950"
               />

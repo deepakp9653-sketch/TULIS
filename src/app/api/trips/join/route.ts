@@ -31,7 +31,7 @@ export async function POST(req: Request) {
         id: newPartId,
         tripId: targetTrip.id,
         name: name.trim(),
-        email: email?.trim() || `${name.toLowerCase().replace(/\s+/g, '')}@fareshare.in`,
+        email: email?.trim() || `${name.toLowerCase().replace(/\s+/g, '')}@tulis.in`,
         avatarUrl: avatarUrl?.trim() || '',
         isOrganizer: false,
         status: 'active',

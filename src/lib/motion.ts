@@ -1,7 +1,7 @@
 import { useReducedMotion } from 'framer-motion';
 
 // ============================================================================
-// MERIDIAN DESIGN SYSTEM — MOTION TOKENS & VARIANTS
+// TULIS DESIGN SYSTEM — MOTION TOKENS & VARIANTS
 // Calibrated for 60fps performance, accessibility, and clean feel.
 // ============================================================================
 

@@ -45,7 +45,7 @@ export const ShareTripModal: React.FC<ShareTripModalProps> = ({
   if (!isOpen) return null;
 
   const inviteCode = trip.inviteCode || 'GOA2026';
-  const shareLink = typeof window !== 'undefined' ? `${window.location.origin}?join=${inviteCode}` : `https://fareshare.in?join=${inviteCode}`;
+  const shareLink = typeof window !== 'undefined' ? `${window.location.origin}?join=${inviteCode}` : `https://tulis.vercel.app?join=${inviteCode}`;
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(shareLink);
@@ -158,7 +158,7 @@ export const ShareTripModal: React.FC<ShareTripModalProps> = ({
               <input
                 type="email"
                 required
-                placeholder="friend@fareshare.in"
+                placeholder="friend@tulis.in"
                 value={selectedUserEmail}
                 onChange={(e) => setSelectedUserEmail(e.target.value)}
                 className="w-full bg-surface-base border border-surface-hairline rounded-xl pl-9 pr-3 py-2.5 text-xs text-ink-primary focus:border-ink-primary outline-none transition-all"

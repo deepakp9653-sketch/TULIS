@@ -1,4 +1,4 @@
-// FareShare Core Domain Types
+// Tulis Core Domain Types
 
 export type SplitMethod = 'equal' | 'weighted' | 'line_item' | 'room_tier' | 'organizer_subsidy' | 'manual';
 

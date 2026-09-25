@@ -6,9 +6,9 @@ export const metadata: Metadata = {
   title: 'Tulis — One Trip. One Ledger. Zero Confusion.',
   description: 'FinTech Precision × Group Fairness. Dynamic Split Engine & Zero-Sum Settlement Platform.',
   icons: {
-    icon: '/fareshare-icon.png',
-    shortcut: '/fareshare-icon.png',
-    apple: '/fareshare-icon.png',
+    icon: '/tulis-icon.png',
+    shortcut: '/tulis-icon.png',
+    apple: '/tulis-icon.png',
   },
 };
 

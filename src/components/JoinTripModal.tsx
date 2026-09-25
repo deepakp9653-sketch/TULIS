@@ -34,7 +34,7 @@ export const JoinTripModal: React.FC<JoinTripModalProps> = ({
       const success = await onJoinTrip(
         inviteCode.trim().toUpperCase(),
         name.trim(),
-        email.trim() || `${name.toLowerCase().replace(/\s+/g, '')}@fareshare.in`,
+        email.trim() || `${name.toLowerCase().replace(/\s+/g, '')}@tulis.in`,
         upiId.trim() || `${name.toLowerCase().replace(/\s+/g, '')}@upi`
       );
 
@@ -128,7 +128,7 @@ export const JoinTripModal: React.FC<JoinTripModalProps> = ({
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="deepak@fareshare.in"
+                placeholder="deepak@tulis.in"
                 className="w-full bg-surface-base border border-surface-hairline rounded-xl pl-9 pr-3 py-2.5 text-ink-primary font-medium focus:border-brand-indigo outline-none"
               />
             </div>

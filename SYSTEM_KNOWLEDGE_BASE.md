@@ -1,10 +1,10 @@
-# Tulis (FareShare / Meridian) — Complete System Knowledge Base & Architectural Blueprint
+# Tulis — Complete System Knowledge Base & Architectural Blueprint
 
-> **System Version:** 2.4.0-production-candidate  
+> **System Version:** 2.5.0-production-candidate  
 > **Status:** Active / Production-Ready Prototype  
-> **Author:** Antigravity Pair-Programming Assistant & Meridian Engineering Team  
-> **Repository:** `https://github.com/deepakp9653-sketch/Meridian.git`  
-> **Primary Deployment URL:** `https://meridian-debuggers.vercel.app/`  
+> **Author:** Antigravity Pair-Programming Assistant & Tulis Engineering Team  
+> **Repository:** `https://github.com/deepakp9653-sketch/TULIS.git`  
+> **Primary Deployment URL:** `https://tulis.vercel.app/`  
 > **Local Runtime:** `http://localhost:3000` (Next.js 16 + Turbopack + Node 20+)  
 > **Database Engine:** Neon PostgreSQL Serverless (AWS us-east-2)  
 
@@ -62,7 +62,7 @@ Group travel planning and post-trip expense reconciliation is notoriously fraugh
 5. **Debt Matrix Explosion:** Without automated min-cash-flow compression, an 8-person trip creates up to 28 confusing pairwise payment transactions.
 6. **Network Fragility:** Travelers in remote locations (beaches, mountain trails, international flights) lose cellular connectivity. Traditional apps either crash or create merge conflicts when internet resumes.
 
-**Tulis (FareShare)** solves this comprehensively by combining an **immutable event-sourced zero-sum double-entry ledger** with an **$O(N \log N)$ greedy debt simplifier**, **Groq AI neural natural-language parsing**, **real-time deterministic anomaly detection**, **offline-first queue reconciliation**, and **native Indian UPI deep-linking**.
+**Tulis** solves this comprehensively by combining an **immutable event-sourced zero-sum double-entry ledger** with an **$O(N \log N)$ greedy debt simplifier**, **Groq AI neural natural-language parsing**, **real-time deterministic anomaly detection**, **offline-first queue reconciliation**, and **native Indian UPI deep-linking**.
 
 ---
 
@@ -268,20 +268,27 @@ When refund amount $R$ is confirmed:
   - Resend Email Service: `resend` (v4.1.2) for passwordless OTP dispatch.
 - **AI / LLM Integration:** Groq SDK (`groq-sdk` v0.15.0) targeting `openai/gpt-oss-20b` and `llama-3.3-70b-versatile`.
 - **Client-Side Document Export:** `jspdf` (v3.0.0) with embedded verification hash stamps.
+- **Motion & Micro-interactions:** `framer-motion` (v12.4.7) driven by unified timing and easing tokens (`MOTION_TOKENS` in `src/lib/motion.ts`).
+- **Financial Counters:** `CountUpMoney` component with smooth 60fps numeral transitions.
 - **Icons & Visuals:** `lucide-react` (v0.475.0) and custom SVG liquid glass badges.
 
 ---
 
 ### 3.3 Authentication & Session Security Subsystem
 
-Tulis features a production-grade dual authentication architecture:
-1. **Google OAuth 2.0:** One-tap sign-in. The client obtains an ID token from `@react-oauth/google`, posts it to `/api/auth/google`, and the server validates the signature and audience against Google’s official OAuth2 tokeninfo service (`https://oauth2.googleapis.com/tokeninfo`).
-2. **Email & Password / OTP:** Users can register with email and password or request a 6-digit numeric verification OTP dispatched via the Resend API.
+Tulis features a production-grade multi-modal authentication and access control architecture:
+1. **Google OAuth 2.0:** One-tap sign-in. Wrapped at the root layout with `<GoogleAuthProvider>` (`@react-oauth/google`). The client obtains a credential JWT, posts it to `/api/auth/google`, and the server validates the signature and audience against Google’s official OAuth2 tokeninfo service (`https://oauth2.googleapis.com/tokeninfo`).
+2. **Email & Password / OTP:** Users can authenticate via salted bcrypt password hash or request a 6-digit numeric verification OTP dispatched via the Resend API (`src/lib/email-service.ts`) with a 10-minute expiry window.
 3. **Stateless JWT Session Management:**
-   - Auth state is encapsulated in an HTTP-only, secure, same-site cookie named `Tulis_session`.
-   - Signed using `jose` with `HS256` and the server secret `SESSION_SECRET`.
+   - Auth state is encapsulated in an HTTP-only, secure, same-site cookie named `tulis_session`.
+   - Signed using `jose` with `HS256` and the server secret `SESSION_SECRET` (fallback `JWT_SECRET`).
    - Contains payload: `{ id, name, email, avatar, role, upiId, emailVerified }`.
-   - Expires in 30 days.
+   - Validated on client hydration via `GET /api/auth?action=me`.
+   - Explicitly invalidated on logout via `POST /api/auth` with `{ action: 'logout' }`.
+4. **My Cloud Trips Dashboard (`MyTripsModal.tsx`):**
+   - Authenticated users can access their cloud-persisted trips (`GET /api/trips?myTrips=true`), seamlessly switch between active workspaces, create new trips, or join squad trips.
+5. **Private Trip Access Gating (`TripAccessGateModal.tsx`):**
+   - Protects private trip ledgers from unauthorized viewing unless the user is an authenticated roster participant or enters the trip's 6-character invite code.
 
 ---
 
@@ -298,7 +305,7 @@ Built in [`src/lib/email-service.ts`](file:///c:/Users/heena/Downloads/hackceles
 ### 3.5 Natural Language AI Engine (Groq LLM)
 
 Built in [`src/app/api/ai/parse-expense/route.ts`](file:///c:/Users/heena/Downloads/hackcelestial/src/app/api/ai/parse-expense/route.ts) and [`src/app/api/ai/explain-balance/route.ts`](file:///c:/Users/heena/Downloads/hackcelestial/src/app/api/ai/explain-balance/route.ts):
-- **Model:** `openai/gpt-oss-20b` via Groq Cloud API (Latency: < 400ms).
+- **Model:** `llama-3.3-70b-versatile` / `openai/gpt-oss-20b` via Groq Cloud API (Latency: < 400ms).
 - **Deterministic Regex Fallback:** If the AI API is unreachable or times out, the local rule-based parser in [`src/lib/ledger-engine.ts`](file:///c:/Users/heena/Downloads/hackcelestial/src/lib/ledger-engine.ts) (`parseNaturalChatExpense`) takes over instantly:
   - Regex pattern matching for amounts (e.g., `₹1200`, `12k`, `12.5k`, `1200rs`).
   - Fuzzy keyword detection for category classification (`cab`, `taxi`, `uber` $\to$ `transport`; `dinner`, `drinks` $\to$ `food`; `hotel`, `villa` $\to$ `lodging`).
@@ -306,11 +313,11 @@ Built in [`src/app/api/ai/parse-expense/route.ts`](file:///c:/Users/heena/Downlo
 
 ---
 
-### 3.6 Offline-First Command Queue & Reconnection State Machine
+### 3.6 Offline-First Command Queue & Client Storage Hierarchy
 
 To ensure complete resilience during remote travel:
-1. When offline (`navigator.onLine === false`), actions (logging expenses, recording payments) are intercepted.
-2. An `OfflineCommand` record is written to `localStorage` under `fareshare_offline_queue`:
+1. When offline (`navigator.onLine === false`), ledger actions (logging expenses, recording payments) are intercepted.
+2. An `OfflineCommand` record is written to `localStorage` under `tulis_offline_queue`:
    ```typescript
    interface OfflineCommand {
      id: string;
@@ -323,6 +330,12 @@ To ensure complete resilience during remote travel:
    ```
 3. An active listener on `window.addEventListener('online')` triggers the sync queue.
 4. Commands are drained sequentially to the server using optimistic execution. The UI renders an emerald badge showing queue synchronization progress.
+5. **Client LocalStorage Key Dictionary:**
+   - `tulis_theme`: Active visual theme (`'dark'` or `'light'`).
+   - `tulis_view_mode`: Top-level view router (`'landing'` or `'app'`).
+   - `tulis_active_trip_id`: Currently selected active trip workspace ID.
+   - `group_ledger_session_v4`: Offline snapshot cache of all trips, participants, bookings, expenses, payments, and events.
+   - `tulis_offline_queue`: Outbox queue of pending operations captured while offline.
 
 ---
 
@@ -800,14 +813,56 @@ Tulis uses a bespoke **Forest Dark Glassmorphism** design system engineered for 
   --color-ledger-deficit: #B5484C;     /* Negative balance / debtor crimson */
   --color-ledger-deficit-bg: rgba(181, 72, 76, 0.12);
 }
+
+/* Dual Theme Semantic Tokens */
+.dark {
+  --color-surface-base: #0F120E;
+  --color-surface-raised: #161B14;
+  --color-surface-inset: #111510;
+  --color-surface-overlay: #1B2219;
+  --color-surface-hairline: rgba(255, 255, 255, 0.08);
+  --color-ink-primary: #F4F2E6;
+  --color-ink-secondary: #BAC7B8;
+  --color-ink-muted: #849182;
+  --color-brand-emerald: #10B981;
+}
+
+.light {
+  --color-surface-base: #F7F8F5;
+  --color-surface-raised: #FFFFFF;
+  --color-surface-inset: #EEF1EB;
+  --color-surface-overlay: #FFFFFF;
+  --color-surface-hairline: rgba(0, 0, 0, 0.08);
+  --color-ink-primary: #171E15;
+  --color-ink-secondary: #4B5A49;
+  --color-ink-muted: #6B7B68;
+  --color-brand-emerald: #059669;
+}
 ```
 
 ---
 
-### 7.2 Typography & Glassmorphism Utilities
+### 7.2 Typography, Motion Tokens & Micro-Interactions
 
 - **Primary Sans:** `'Inter', -apple-system, sans-serif` — Used for body copy, buttons, and navigation.
 - **Tabular Monospace:** `'JetBrains Mono', monospace` — Enforces tabular lining figures (`font-variant-numeric: tabular-nums`) so accounting columns align perfectly.
+- **Unified Framer Motion Tokens (`src/lib/motion.ts`):**
+  ```typescript
+  export const MOTION_TOKENS = {
+    spring: { type: 'spring', damping: 25, stiffness: 300 },
+    easing: {
+      easeInOut: [0.4, 0, 0.2, 1],
+      easeOut: [0.16, 1, 0.3, 1],
+    },
+    duration: {
+      fast: 0.15,
+      base: 0.25,
+      slow: 0.4,
+    },
+  };
+  ```
+- **Animated Numerical Currency (`src/components/CountUpMoney.tsx`):**
+  Calculates continuous easeOut frame interpolation for currency numbers (`prefix="₹"`), preventing jarring layout jumps when balances recalculate.
 - **Glass Panel Utility:**
   ```css
   .glass-panel {
@@ -831,7 +886,7 @@ Tulis uses a bespoke **Forest Dark Glassmorphism** design system engineered for 
 
 ### 7.3 Component Inventory & Hierarchy
 
-The application frontend is structured into 49 modular, specialized React components in [`src/components/`](file:///c:/Users/heena/Downloads/hackcelestial/src/components/):
+The application frontend is structured into modular, specialized React components in [`src/components/`](file:///c:/Users/heena/Downloads/hackcelestial/src/components/):
 
 ```
 src/components/
@@ -839,13 +894,14 @@ src/components/
 ├── ActivityLogSection.tsx          # Event-sourced chronological history feed
 ├── AddBookingModal.tsx             # New itinerary item creator
 ├── AnomalyFeedBanner.tsx           # High-visibility conflict & discrepancy alerts
-├── AuthModal.tsx                   # Google OAuth + Email/Password/OTP tabbed modal
+├── AuthModal.tsx                   # Google OAuth + Email OTP + password login modal
 ├── CancelBookingModal.tsx          # Refund policy selector & cascade preview
 ├── ChaosDemoModal.tsx              # 100+ concurrent event stress testing suite
 ├── ChatExpenseModal.tsx            # AI natural language chat parser interface
+├── CountUpMoney.tsx                # Eased 60fps financial currency counter
 ├── CreateTripModal.tsx             # New trip setup wizard (invite code generator)
 ├── DashboardAccessModal.tsx        # Passcode barrier for locked trips
-├── DashboardShell.tsx              # Main application state container & controller
+├── DashboardShell.tsx              # Framed workspace container & command rail
 ├── DebtReassignmentModal.tsx       # Transfer debt liability between travelers
 ├── DuplicateExpenseWarningModal.tsx# Pre-commit similarity check dialog
 ├── DynamicSplitDrawer.tsx          # 6-way split calculator & weight adjuster
@@ -859,9 +915,9 @@ src/components/
 ├── JoinTripModal.tsx               # 6-character invite code entry dialog
 ├── LandingPage.tsx                 # Marketing showcase, live demo, & feature matrix
 ├── LiquidGlassButton.tsx           # High-polish interactive glass button
-├── LiquidLogo.tsx                  # Animated brand SVG mark
+├── LiquidLogo.tsx                  # Animated brand SVG mark & emblem
 ├── LiquidShaderGradient.tsx        # WebGL ambient backdrop canvas
-├── MyTripsModal.tsx                # Personal trip library & switcher
+├── MyTripsModal.tsx                # Cloud personal trip library & switcher
 ├── Navigation.tsx                  # Primary tab bar (Overview, Expenses, Itinerary, etc.)
 ├── NudgeReminderModal.tsx          # WhatsApp & email debt notification generator
 ├── OfflineQueueIndicator.tsx       # Real-time offline status & sync counter
@@ -908,7 +964,7 @@ GOOGLE_CLIENT_ID="510179913493-prnuldb8fundps402c431u7eo7tea8mb.apps.googleuserc
 GOOGLE_CLIENT_SECRET="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"
 
 # 4. Session Security (Cryptographic HMAC-SHA256 Key)
-SESSION_SECRET="Tulis_super_secret_session_key_production_2026_jwt"
+SESSION_SECRET="tulis_super_secret_session_key_production_2026_jwt"
 
 # 5. Natural Language AI Engine (Groq Cloud SDK)
 GROQ_API_KEY="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"
@@ -919,13 +975,13 @@ GROQ_API_KEY="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"
 ### 8.2 Vercel Deployment Checklist
 
 When deploying to Vercel:
-1. **Repository Link:** Connect `https://github.com/deepakp9653-sketch/Meridian.git`.
+1. **Repository Link:** Connect `https://github.com/deepakp9653-sketch/TULIS.git`.
 2. **Framework Preset:** Next.js.
 3. **Build Command:** `npm run build` (Next.js App Router compilation).
 4. **Environment Variables:**
    - Add every variable listed in Section 8.1 into the **Vercel Project Settings $\to$ Environment Variables** dashboard for `Production`, `Preview`, and `Development`.
 5. **Security Notice:**
-   - *Never commit production secrets to public git repos.* If `.env.local` is pushed, rotate the Resend and Google API keys immediately.
+   - *Never commit production secrets to public git repos.* If `.env.local` is rotated, update the Resend and Google API keys in both local and hosting provider dashboards.
 
 ---
 
@@ -935,11 +991,11 @@ In Google Cloud Console (**APIs & Services $\to$ Credentials**):
 1. **Client ID:** `510179913493-prnuldb8fundps402c431u7eo7tea8mb.apps.googleusercontent.com`
 2. **Authorized JavaScript Origins:**
    - `http://localhost:3000` (Local testing)
-   - `https://meridian-debuggers.vercel.app` (Production deployment)
+   - `https://tulis.vercel.app` (Production deployment)
 3. **Authorized Redirect URIs:**
    - `http://localhost:3000`
-   - `https://meridian-debuggers.vercel.app`
-   - `https://meridian-debuggers.vercel.app/api/auth/callback/google`
+   - `https://tulis.vercel.app`
+   - `https://tulis.vercel.app/api/auth/callback/google`
 
 ---
 

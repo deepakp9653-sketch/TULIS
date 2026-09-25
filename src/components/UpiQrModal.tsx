@@ -27,7 +27,7 @@ export const UpiQrModal: React.FC<UpiQrModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
-  const upiLink = `upi://pay?pa=${encodeURIComponent(payeeUpiId)}&pn=${encodeURIComponent(toName)}&am=${amount}&cu=INR&tn=${encodeURIComponent('FareShare Settlement')}`;
+  const upiLink = `upi://pay?pa=${encodeURIComponent(payeeUpiId)}&pn=${encodeURIComponent(toName)}&am=${amount}&cu=INR&tn=${encodeURIComponent('Tulis Settlement')}`;
   // Generated SVG QR code fallback
   const generatedQrImg = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(upiLink)}&color=1C1B18&bgcolor=FBF8F3`;
 

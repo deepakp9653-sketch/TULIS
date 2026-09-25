@@ -1,4 +1,4 @@
-// Neon PostgreSQL DB Client for FareShare
+// Neon PostgreSQL DB Client for Tulis
 import { neon } from '@neondatabase/serverless';
 
 const connectionString =

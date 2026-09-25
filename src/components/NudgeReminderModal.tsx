@@ -40,7 +40,7 @@ export const NudgeReminderModal: React.FC<NudgeReminderModalProps> = ({
   const generateDigestText = () => {
     let header = `🌴 *${tripTitle} — Expense Settlement Update* 🌴\n\n`;
     if (tone === 'friendly') {
-      header += `Hey everyone! Hope you had an amazing time on the trip. Here is the friendly reminder of the unsettled balances to wrap up our FareShare ledger:\n\n`;
+      header += `Hey everyone! Hope you had an amazing time on the trip. Here is the friendly reminder of the unsettled balances to wrap up our Tulis ledger:\n\n`;
     } else if (tone === 'direct') {
       header += `Hi squad, the final ledger is calculated. Please clear the pending dues below at your earliest convenience:\n\n`;
     } else {
@@ -58,7 +58,7 @@ export const NudgeReminderModal: React.FC<NudgeReminderModalProps> = ({
       items = `🎉 All balances are completely cleared! Zero-sum balanced.\n`;
     }
 
-    const footer = `\n📲 Pay via UPI to Organizer:\nupi://pay?pa=trip.organizer@okaxis&pn=${encodeURIComponent(tripTitle)}&cu=INR\n\n_Generated deterministically by FareShare_`;
+    const footer = `\n📲 Pay via UPI to Organizer:\nupi://pay?pa=trip.organizer@okaxis&pn=${encodeURIComponent(tripTitle)}&cu=INR\n\n_Generated deterministically by Tulis_`;
     return header + items + footer;
   };
 

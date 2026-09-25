@@ -36,7 +36,7 @@ export const LiquidLogo: React.FC<LiquidLogoProps> = ({
 
         {/* Official Tulis Emblem */}
         <img
-          src="/fareshare-icon.png"
+          src="/tulis-icon.png"
           alt="Tulis Logo"
           className="relative z-10 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
         />

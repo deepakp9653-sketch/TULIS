@@ -223,7 +223,7 @@ export const ParticipantsSection: React.FC<ParticipantsSectionProps> = ({
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="vikram@fareshare.in"
+                  placeholder="vikram@tulis.in"
                   className="w-full bg-surface-base border border-surface-hairline rounded-xl px-3 py-2 text-ink-primary focus:border-emerald-500 outline-none"
                 />
               </div>

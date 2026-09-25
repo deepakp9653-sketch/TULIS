@@ -7,7 +7,7 @@ export async function POST(request: Request) {
   try {
     const { userName, netBalance, debts, tripTitle } = await request.json();
 
-    const prompt = `You are a friendly, transparent financial assistant for an Indian group travel app called FareShare.
+    const prompt = `You are a friendly, transparent financial assistant for an Indian group travel app called Tulis.
 The user ${userName} has a net balance of ₹${netBalance} in the trip "${tripTitle || 'Trip'}".
 Their settlement relationships:
 ${JSON.stringify(debts || [])}

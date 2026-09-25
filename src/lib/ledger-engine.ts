@@ -1,4 +1,4 @@
-// FareShare Core Math & State Engine
+// Tulis Core Math & State Engine
 
 import {
   Participant,
