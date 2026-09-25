@@ -79,6 +79,7 @@ import { DashboardAccessModal } from '@/components/DashboardAccessModal';
 import { DEMO_USERS } from '@/lib/user-store';
 import { logEventToNeon, saveRefundToNeon, updateBookingInNeon, saveBookingToNeon } from '@/lib/db';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Compass, Plus, Key, Sun, Moon } from 'lucide-react';
 
 export default function Home() {
   const [viewMode, setViewMode] = useState<'landing' | 'app'>('landing');
@@ -286,29 +287,14 @@ export default function Home() {
     }
   }, []);
 
-  // Sync cloud trips from Neon DB on app initialization
-  useEffect(() => {
-    fetch('/api/trips')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success && Array.isArray(data.trips) && data.trips.length > 0) {
-          setTrips((prev) => {
-            const existingIds = new Set(prev.map((t) => t.id));
-            const newTrips = data.trips.filter((t: Trip) => !existingIds.has(t.id));
-            return [...prev, ...newTrips];
-          });
-        }
-      })
-      .catch((err) => console.warn('Could not sync cloud trips on load:', err));
-  }, []);
-
-  // Verify user session on mount
+  // Verify user session on mount and synchronize their associated trips
   useEffect(() => {
     fetch('/api/auth?action=me')
       .then((res) => res.json())
       .then((data) => {
         if (data.success && data.user) {
           setCurrentUserSession(data.user);
+          syncUserTrips(data.user);
         }
       })
       .catch((err) => console.warn('Session verification error:', err));
@@ -568,7 +554,7 @@ export default function Home() {
     }
   };
 
-  const loadTripById = async (targetTripId: string) => {
+  const loadTripById = async (targetTripId: string, userEmail?: string) => {
     try {
       const res = await fetch(`/api/trips?tripId=${targetTripId}`);
       const json = await res.json();
@@ -576,13 +562,24 @@ export default function Home() {
         const fetchedTrip: Trip = json.trip;
         const allParts: Participant[] = json.participants || [];
 
-        setTrips((prev) => [fetchedTrip, ...prev.filter((t) => t.id !== fetchedTrip.id)]);
+        setTrips((prev) => {
+          const exists = prev.some((t) => t.id === fetchedTrip.id);
+          if (!exists) return [fetchedTrip, ...prev];
+          return prev.map((t) => (t.id === fetchedTrip.id ? fetchedTrip : t));
+        });
         setParticipantsMap((prev) => ({ ...prev, [fetchedTrip.id]: allParts }));
         if (json.bookings) setBookingsMap((prev) => ({ ...prev, [fetchedTrip.id]: json.bookings }));
         if (json.expenses) setExpensesMap((prev) => ({ ...prev, [fetchedTrip.id]: json.expenses }));
         if (json.events) setEventsMap((prev) => ({ ...prev, [fetchedTrip.id]: json.events }));
 
-        if (allParts.length > 0) {
+        const emailToMatch = (userEmail || currentUserSession?.email || '').trim().toLowerCase();
+        const matchingPart = emailToMatch
+          ? allParts.find((p) => p.email?.trim().toLowerCase() === emailToMatch)
+          : null;
+
+        if (matchingPart) {
+          setCurrentUserId(matchingPart.id);
+        } else if (allParts.length > 0) {
           setCurrentUserId(allParts[0].id);
         }
         enterAppMode(fetchedTrip.id, fetchedTrip.inviteCode);
@@ -594,11 +591,42 @@ export default function Home() {
     return false;
   };
 
+  // Synchronize and showcase strictly the trips associated with this user's account
+  const syncUserTrips = async (user: AuthSessionUser, preferredTripId?: string) => {
+    try {
+      const userEmail = user.email.trim().toLowerCase();
+      const res = await fetch(`/api/trips?email=${encodeURIComponent(userEmail)}`);
+      const data = await res.json();
+      if (data.success && Array.isArray(data.trips)) {
+        const userTrips: Trip[] = data.trips;
+        setTrips(userTrips);
+
+        if (userTrips.length > 0) {
+          const targetTrip =
+            (preferredTripId && userTrips.find((t) => t.id === preferredTripId)) ||
+            userTrips.find((t) => t.id === activeTripId) ||
+            userTrips[0];
+          setActiveTripId(targetTrip.id);
+          await loadTripById(targetTrip.id, userEmail);
+          setViewMode('app');
+        } else {
+          setActiveTripId('');
+          setViewMode('app');
+        }
+      }
+    } catch (err) {
+      console.warn('Could not sync user associated trips:', err);
+    }
+  };
+
   // Explicit Logout handler: clears session, auth cookies, and resets to landing
   const handleLogout = async () => {
     setViewMode('landing');
     setCurrentUserSession(null);
     setIsMyTripsOpen(false);
+    setTrips([INITIAL_TRIP]);
+    setActiveTripId(INITIAL_TRIP.id);
+    setCurrentUserId('p1');
     try {
       await fetch('/api/auth', {
         method: 'POST',
@@ -607,12 +635,7 @@ export default function Home() {
       });
       localStorage.setItem('tulis_view_mode', 'landing');
       localStorage.removeItem('tulis_active_trip_id');
-      const saved = localStorage.getItem('group_ledger_session_v4');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        parsed.viewMode = 'landing';
-        localStorage.setItem('group_ledger_session_v4', JSON.stringify(parsed));
-      }
+      localStorage.removeItem('group_ledger_session_v4');
       if (typeof window !== 'undefined') {
         window.history.replaceState(null, '', window.location.pathname);
       }
@@ -665,15 +688,19 @@ export default function Home() {
       createdAt: new Date().toISOString(),
     };
 
+    const activeEmail = currentUserSession?.email || creator.email;
+    const activeName = currentUserSession?.name || creator.name;
+    const activeUpi = currentUserSession?.upiId || creator.upiId;
+
     const creatorParticipant: Participant = {
       id: creatorId,
       tripId: newTripId,
-      name: creator.name,
-      email: creator.email,
-      avatarUrl: creator.avatarUrl?.trim() || '',
+      name: activeName,
+      email: activeEmail,
+      avatarUrl: creator.avatarUrl?.trim() || currentUserSession?.avatar || '',
       isOrganizer: true,
       status: 'active',
-      upiId: creator.upiId,
+      upiId: activeUpi,
       weight: 1,
       roomTier: 'suite',
     };
@@ -735,6 +762,9 @@ export default function Home() {
     avatarUrl?: string
   ): Promise<boolean> => {
     const cleanCode = inviteCode.trim().toUpperCase();
+    const finalEmail = currentUserSession?.email || travelerEmail;
+    const finalName = currentUserSession?.name || travelerName;
+    const finalUpi = currentUserSession?.upiId || upiId;
 
     // 1. Call server API to join trip in Neon DB
     try {
@@ -743,10 +773,10 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           inviteCode: cleanCode,
-          name: travelerName,
-          email: travelerEmail,
-          upiId,
-          avatarUrl,
+          name: finalName,
+          email: finalEmail,
+          upiId: finalUpi,
+          avatarUrl: avatarUrl || currentUserSession?.avatar,
         }),
       });
 
@@ -1628,12 +1658,24 @@ export default function Home() {
     return (
       <>
         <LandingPage
-          onEnterApp={() => setIsDashboardAccessOpen(true)}
+          onEnterApp={() => {
+            if (currentUserSession) {
+              syncUserTrips(currentUserSession);
+            } else {
+              setIsDashboardAccessOpen(true);
+            }
+          }}
           onOpenCreateTrip={() => setIsCreateTripOpen(true)}
           onOpenJoinTrip={() => setIsJoinTripOpen(true)}
           currentUser={currentUserSession}
           onOpenAuth={() => setIsAuthOpen(true)}
-          onOpenMyTrips={() => setIsMyTripsOpen(true)}
+          onOpenMyTrips={() => {
+            if (currentUserSession) {
+              syncUserTrips(currentUserSession);
+            } else {
+              setIsAuthOpen(true);
+            }
+          }}
         />
 
         <DashboardAccessModal
@@ -1689,22 +1731,24 @@ export default function Home() {
           isOpen={isCreateTripOpen}
           onClose={() => setIsCreateTripOpen(false)}
           onCreateTrip={handleCreateTrip}
+          currentUser={currentUserSession}
         />
 
         <JoinTripModal
           isOpen={isJoinTripOpen}
           onClose={() => setIsJoinTripOpen(false)}
           onJoinTrip={handleJoinTrip}
+          currentUser={currentUserSession}
         />
 
         <AuthModal
           isOpen={isAuthOpen}
           onClose={() => setIsAuthOpen(false)}
-          onAuthSuccess={(sessionUser) => {
+          onAuthSuccess={async (sessionUser) => {
             setCurrentUserSession(sessionUser);
             setIsAuthOpen(false);
-            setIsMyTripsOpen(true);
-            triggerToast(`Welcome, ${sessionUser.name}! Account authenticated.`);
+            await syncUserTrips(sessionUser);
+            triggerToast(`Welcome, ${sessionUser.name}! Showing your associated trips.`);
           }}
         />
 
@@ -1728,6 +1772,120 @@ export default function Home() {
           onLogout={handleLogout}
         />
       </>
+    );
+  }
+
+  // Dedicated Empty Workspace for Authenticated Users with 0 Associated Trips
+  if (currentUserSession && (!trip || trips.length === 0)) {
+    return (
+      <div className="min-h-screen bg-surface-base text-ink-primary font-sans flex flex-col justify-between">
+        {/* Top Navbar */}
+        <header className="border-b border-border-default bg-surface-card/60 backdrop-blur-xl px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <LiquidLogo size={32} />
+            <div>
+              <span className="font-bold text-base tracking-tight font-serif-display text-ink-primary">Tulis</span>
+              <span className="text-[10px] ml-2 font-mono uppercase px-2 py-0.5 rounded bg-brand-emerald/15 text-brand-emerald border border-brand-emerald/30 font-semibold">
+                Personal Workspace
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface-card border border-border-default">
+              {currentUserSession.avatar ? (
+                <img src={currentUserSession.avatar} alt={currentUserSession.name} className="w-5 h-5 rounded-full object-cover" />
+              ) : (
+                <div className="w-5 h-5 rounded-full bg-brand-emerald text-surface-base text-[10px] font-bold flex items-center justify-center">
+                  {currentUserSession.name?.charAt(0) || 'U'}
+                </div>
+              )}
+              <span className="text-xs font-medium text-ink-primary">{currentUserSession.email}</span>
+            </div>
+            <button
+              onClick={toggleTheme}
+              className="p-2 rounded-xl border border-border-default bg-surface-card hover:bg-surface-elevated text-ink-muted hover:text-ink-primary transition-colors cursor-pointer"
+            >
+              {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </button>
+            <button
+              onClick={handleLogout}
+              className="px-3.5 py-1.5 rounded-xl border border-border-default bg-surface-card hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30 text-xs font-semibold text-ink-secondary transition-all cursor-pointer"
+            >
+              Sign Out
+            </button>
+          </div>
+        </header>
+
+        {/* Empty State Hero Container */}
+        <main className="flex-1 flex items-center justify-center p-6">
+          <div className="max-w-md w-full text-center space-y-6 bg-surface-card/90 border border-border-default p-8 rounded-3xl shadow-2xl relative overflow-hidden backdrop-blur-xl">
+            <div className="absolute top-0 right-0 w-48 h-48 bg-brand-emerald/10 rounded-full blur-3xl pointer-events-none" />
+            
+            <div className="w-16 h-16 rounded-2xl bg-brand-emerald/15 border border-brand-emerald/30 text-brand-emerald flex items-center justify-center mx-auto shadow-emerald">
+              <Compass className="w-8 h-8" />
+            </div>
+
+            <div className="space-y-2">
+              <h2 className="text-xl font-bold font-serif-display text-ink-primary">
+                No Associated Trips Found
+              </h2>
+              <p className="text-xs text-ink-secondary leading-relaxed">
+                You are authenticated as <strong className="text-brand-emerald">{currentUserSession.email}</strong>. This account is not yet associated with any group trips in the database.
+              </p>
+            </div>
+
+            <div className="space-y-3 pt-2">
+              <button
+                onClick={() => setIsCreateTripOpen(true)}
+                className="w-full py-3 px-4 rounded-xl bg-brand-emerald hover:bg-emerald-600 text-surface-base font-bold text-xs flex items-center justify-center gap-2 shadow-emerald transition-all cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Create a New Trip</span>
+              </button>
+
+              <button
+                onClick={() => setIsJoinTripOpen(true)}
+                className="w-full py-3 px-4 rounded-xl bg-surface-base hover:bg-surface-elevated border border-border-default text-ink-primary font-semibold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
+              >
+                <Key className="w-4 h-4 text-brand-emerald" />
+                <span>Join Trip via Invite Code</span>
+              </button>
+            </div>
+
+            <div className="pt-2 border-t border-border-default/50 text-[11px] text-ink-muted">
+              <span>Want to preview group reconciliation features? </span>
+              <button
+                onClick={() => {
+                  setTrips([INITIAL_TRIP]);
+                  setActiveTripId(INITIAL_TRIP.id);
+                  setCurrentUserId('p1');
+                }}
+                className="text-brand-emerald hover:underline font-semibold cursor-pointer"
+              >
+                Explore Demo Trip
+              </button>
+            </div>
+          </div>
+        </main>
+
+        <footer className="text-center py-4 text-xs text-ink-muted border-t border-border-default">
+          Tulis • Deterministic Group Travel Finance Ledger
+        </footer>
+
+        <CreateTripModal
+          isOpen={isCreateTripOpen}
+          onClose={() => setIsCreateTripOpen(false)}
+          onCreateTrip={handleCreateTrip}
+          currentUser={currentUserSession}
+        />
+        <JoinTripModal
+          isOpen={isJoinTripOpen}
+          onClose={() => setIsJoinTripOpen(false)}
+          onJoinTrip={handleJoinTrip}
+          currentUser={currentUserSession}
+        />
+      </div>
     );
   }
 
@@ -1939,6 +2097,7 @@ export default function Home() {
         isOpen={isCreateTripOpen}
         onClose={() => setIsCreateTripOpen(false)}
         onCreateTrip={handleCreateTrip}
+        currentUser={currentUserSession}
       />
 
       {/* Join Trip via Code Modal */}
@@ -1946,6 +2105,7 @@ export default function Home() {
         isOpen={isJoinTripOpen}
         onClose={() => setIsJoinTripOpen(false)}
         onJoinTrip={handleJoinTrip}
+        currentUser={currentUserSession}
       />
 
       {/* My Trips Switcher Drawer */}
@@ -1969,11 +2129,11 @@ export default function Home() {
       <AuthModal
         isOpen={isAuthOpen}
         onClose={() => setIsAuthOpen(false)}
-        onAuthSuccess={(sessionUser) => {
+        onAuthSuccess={async (sessionUser) => {
           setCurrentUserSession(sessionUser);
           setIsAuthOpen(false);
-          setIsMyTripsOpen(true);
-          triggerToast(`Welcome, ${sessionUser.name}! Account authenticated.`);
+          await syncUserTrips(sessionUser);
+          triggerToast(`Welcome, ${sessionUser.name}! Showing your associated trips.`);
         }}
       />
 

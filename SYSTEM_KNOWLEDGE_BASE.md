@@ -599,14 +599,17 @@ CREATE INDEX IF NOT EXISTS idx_trip_members_user ON trip_members(user_id);
 ---
 
 ### 5.3 Trips Collection & Management (`/api/trips`)
-*Retrieves all accessible trips for the authenticated user and handles creation of new trips.*
+*Retrieves strictly the associated trips for the authenticated user and handles creation of new trips.*
 
 - **GET `/api/trips`:**
-  - Extracts user ID from session.
-  - Returns array of accessible trips (owned as organizer or joined in `trip_members`).
+  - Extracts authenticated user identity from the signed `tulis_session` JWT cookie or accepts `?email=...`.
+  - Executes a deterministic query against Neon DB ensuring only trips where `LOWER(participants.email) = targetEmail` or `trips.organizer_id = targetUserId/targetEmail` are returned.
+  - Unassociated trips (from other users or past demo caches) are strictly filtered out to guarantee total privacy across accounts.
+  - For unauthenticated requests without an account query, returns an empty list (`[]`) to prevent private ledger leakage.
+  - Automatically provisions the user role (`organizer` vs `member`) in the response payload.
 - **POST `/api/trips`:**
-  - Creates a new trip record in Neon with unique 6-character uppercase invite code (e.g., `GOA2026`).
-  - Automatically provisions creator as primary Organizer in `participants` and `trip_members`.
+  - Creates a new trip record in Neon with unique 6-character uppercase invite code (e.g., `MAN676`).
+  - Automatically binds the creator as primary Organizer with their authenticated Gmail/email identity.
   - Emits `TRIP_CREATED` event to immutable ledger.
 
 ---

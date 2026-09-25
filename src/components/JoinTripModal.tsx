@@ -7,20 +7,30 @@ import { motion } from 'framer-motion';
 interface JoinTripModalProps {
   isOpen: boolean;
   onClose: () => void;
+  currentUser?: any;
   onJoinTrip: (inviteCode: string, travelerName: string, travelerEmail: string, upiId: string) => Promise<boolean> | boolean;
 }
 
 export const JoinTripModal: React.FC<JoinTripModalProps> = ({
   isOpen,
   onClose,
+  currentUser,
   onJoinTrip,
 }) => {
   const [inviteCode, setInviteCode] = useState('');
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [upiId, setUpiId] = useState('');
+  const [name, setName] = useState(currentUser?.name || '');
+  const [email, setEmail] = useState(currentUser?.email || '');
+  const [upiId, setUpiId] = useState(currentUser?.upiId || '');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  React.useEffect(() => {
+    if (isOpen && currentUser) {
+      if (currentUser.name) setName(currentUser.name);
+      if (currentUser.email) setEmail(currentUser.email);
+      if (currentUser.upiId) setUpiId(currentUser.upiId);
+    }
+  }, [isOpen, currentUser]);
 
   if (!isOpen) return null;
 

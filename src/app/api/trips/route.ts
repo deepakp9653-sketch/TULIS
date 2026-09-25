@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { sql, saveTripToNeon, findTripByInviteCodeInNeon, fetchTripExpensesWithAllocations } from '@/lib/db';
+import { getCurrentUser } from '@/lib/auth-service';
 
 export async function GET(req: Request) {
   try {
@@ -283,22 +284,66 @@ export async function GET(req: Request) {
       });
     }
 
-    // 3. Return all Trips
-    const allTrips = await sql`SELECT * FROM trips ORDER BY created_at DESC LIMIT 50;`;
-    const formattedAllTrips = allTrips.map((t: any) => ({
-      id: t.id,
-      title: t.title,
-      destination: t.destination,
-      baseCurrency: t.base_currency || 'INR',
-      startDate: t.start_date,
-      endDate: t.end_date,
-      budgetCeiling: Number(t.budget_ceiling || 0),
-      inviteCode: t.invite_code,
-      organizerId: t.organizer_id,
-      createdAt: t.created_at,
-    }));
+    // 3. User Account Scoped Trips
+    // Strictly filter trips associated with the authenticated user or requested email
+    const currentUser = await getCurrentUser();
+    const requestedEmail = searchParams.get('email');
+    const myTripsOnly = searchParams.get('myTrips') === 'true';
 
-    return NextResponse.json({ success: true, trips: formattedAllTrips });
+    const targetEmail = (requestedEmail || currentUser?.email || '').trim().toLowerCase();
+    const targetUserId = currentUser?.id || '';
+
+    // If an account identity is provided (either from session cookie, email query param, or myTrips flag)
+    if (targetEmail || targetUserId || myTripsOnly) {
+      if (!targetEmail && !targetUserId) {
+        // Requested user trips but unauthenticated / no identity
+        return NextResponse.json({ success: true, trips: [] });
+      }
+
+      const userTrips = await sql`
+        SELECT DISTINCT t.*,
+          CASE 
+            WHEN (t.organizer_id = ${targetUserId} AND ${targetUserId} != '')
+                 OR LOWER(t.organizer_id) = ${targetEmail} 
+                 OR EXISTS (
+                   SELECT 1 FROM participants p2 
+                   WHERE p2.trip_id = t.id AND LOWER(p2.email) = ${targetEmail} AND p2.is_organizer = true
+                 ) THEN 'organizer'
+            ELSE 'member'
+          END as user_role
+        FROM trips t
+        WHERE 
+          (t.organizer_id = ${targetUserId} AND ${targetUserId} != '')
+          OR LOWER(t.organizer_id) = ${targetEmail}
+          OR EXISTS (
+            SELECT 1 FROM participants p 
+            WHERE p.trip_id = t.id AND (
+              LOWER(p.email) = ${targetEmail} 
+              OR (${targetUserId} != '' AND p.id = ${targetUserId})
+            )
+          )
+        ORDER BY t.created_at DESC;
+      `;
+
+      const formattedUserTrips = userTrips.map((t: any) => ({
+        id: t.id,
+        title: t.title,
+        destination: t.destination,
+        baseCurrency: t.base_currency || 'INR',
+        startDate: t.start_date,
+        endDate: t.end_date,
+        budgetCeiling: Number(t.budget_ceiling || 0),
+        inviteCode: t.invite_code,
+        organizerId: t.organizer_id,
+        createdAt: t.created_at,
+        userRole: t.user_role || 'member',
+      }));
+
+      return NextResponse.json({ success: true, trips: formattedUserTrips });
+    }
+
+    // Unauthenticated guest query: return empty list to protect private group ledgers
+    return NextResponse.json({ success: true, trips: [] });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }

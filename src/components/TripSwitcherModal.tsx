@@ -89,20 +89,29 @@ export const TripSwitcherModal: React.FC<TripSwitcherModalProps> = ({
 
         {/* Trips Cards Grid Container */}
         <div className="flex-1 overflow-y-auto space-y-3.5 pr-1">
-          {trips.map((t) => {
-            const isActive = t.id === activeTripId;
-            const tripParts = participantsMap[t.id] || [];
-            const organizer = tripParts.find((p) => p.isOrganizer || p.id === t.organizerId) || tripParts[0];
+          {trips.length === 0 ? (
+            <div className="py-12 text-center border border-dashed border-surface-hairline rounded-2xl p-6">
+              <Compass className="w-8 h-8 text-ink-muted/50 mx-auto mb-2" />
+              <p className="text-sm font-semibold text-ink-primary">No associated trips found</p>
+              <p className="text-xs text-ink-secondary mt-1">
+                Create a new trip or ask your squad for their 6-character Invite Code.
+              </p>
+            </div>
+          ) : (
+            trips.map((t) => {
+              const isActive = t.id === activeTripId;
+              const tripParts = participantsMap[t.id] || [];
+              const organizer = tripParts.find((p) => p.isOrganizer || p.id === t.organizerId) || tripParts[0];
 
-            return (
-              <div
-                key={t.id}
-                className={`p-4.5 rounded-2xl border transition-all space-y-3 ${
-                  isActive
-                    ? 'bg-surface-base border-emerald-500 ring-2 ring-emerald-500/20 shadow-paper'
-                    : 'bg-surface-base border-surface-hairline hover:border-emerald-500/40'
-                }`}
-              >
+              return (
+                <div
+                  key={t.id}
+                  className={`p-4.5 rounded-2xl border transition-all space-y-3 ${
+                    isActive
+                      ? 'bg-surface-base border-emerald-500 ring-2 ring-emerald-500/20 shadow-paper'
+                      : 'bg-surface-base border-surface-hairline hover:border-emerald-500/40'
+                  }`}
+                >
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div>
                     <div className="flex items-center gap-2">
@@ -162,7 +171,8 @@ export const TripSwitcherModal: React.FC<TripSwitcherModalProps> = ({
                 </div>
               </div>
             );
-          })}
+          })
+        )}
         </div>
       </motion.div>
     </div>

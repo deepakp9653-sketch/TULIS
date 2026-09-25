@@ -30,20 +30,31 @@ interface CreateTripModalProps {
       avatarUrl?: string;
     }>
   ) => void;
+  currentUser?: any;
 }
 
 export const CreateTripModal: React.FC<CreateTripModalProps> = ({
   isOpen,
   onClose,
   onCreateTrip,
+  currentUser,
 }) => {
   const [step, setStep] = useState<number>(1);
 
   // Step 1: Creator Details
-  const [creatorName, setCreatorName] = useState('');
-  const [creatorEmail, setCreatorEmail] = useState('');
-  const [creatorUpi, setCreatorUpi] = useState('');
-  const [creatorAvatarUrl, setCreatorAvatarUrl] = useState('');
+  const [creatorName, setCreatorName] = useState(currentUser?.name || '');
+  const [creatorEmail, setCreatorEmail] = useState(currentUser?.email || '');
+  const [creatorUpi, setCreatorUpi] = useState(currentUser?.upiId || '');
+  const [creatorAvatarUrl, setCreatorAvatarUrl] = useState(currentUser?.avatar || '');
+
+  React.useEffect(() => {
+    if (isOpen && currentUser) {
+      if (currentUser.name) setCreatorName(currentUser.name);
+      if (currentUser.email) setCreatorEmail(currentUser.email);
+      if (currentUser.upiId) setCreatorUpi(currentUser.upiId);
+      if (currentUser.avatar) setCreatorAvatarUrl(currentUser.avatar);
+    }
+  }, [isOpen, currentUser]);
 
   // Step 2: Trip Details
   const [title, setTitle] = useState('');
