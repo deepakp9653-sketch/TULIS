@@ -22,13 +22,15 @@ export async function POST(req: Request) {
 
     // Check if user already exists by email
     const existingUsers = await sql`
-      SELECT id, name, email, role, avatar, upi_id as "upiId", email_verified as "emailVerified"
+      SELECT id, name, email, role, avatar, upi_id as "upiId", email_verified as "emailVerified",
+             gender, phone, profile_completed as "profileCompleted"
       FROM users
       WHERE LOWER(email) = ${cleanEmail}
       LIMIT 1;
     `;
 
     let finalUser: AuthSessionUser;
+    let needsProfileCompletion = false;
 
     if (existingUsers && existingUsers.length > 0) {
       const u = existingUsers[0];
@@ -42,6 +44,9 @@ export async function POST(req: Request) {
         WHERE id = ${u.id};
       `;
 
+      // If user hasn't completed their profile (gender/phone missing or profile_completed is false)
+      needsProfileCompletion = !Boolean(u.profileCompleted && u.gender && u.phone);
+
       finalUser = {
         id: u.id,
         name: u.name,
@@ -50,6 +55,9 @@ export async function POST(req: Request) {
         avatar: u.avatar || avatar,
         upiId: u.upiId || `${u.name.toLowerCase().replace(/\s+/g, '')}@upi`,
         emailVerified: true,
+        gender: u.gender || undefined,
+        phone: u.phone || undefined,
+        profileCompleted: Boolean(u.profileCompleted),
       };
     } else {
       // Create new user from Google profile
@@ -57,9 +65,11 @@ export async function POST(req: Request) {
       const defaultUpi = `${name.toLowerCase().replace(/\s+/g, '')}@upi`;
 
       await sql`
-        INSERT INTO users (id, name, email, password, google_id, role, avatar, upi_id, email_verified)
-        VALUES (${newUserId}, ${name}, ${cleanEmail}, NULL, ${googleId}, 'traveler', ${avatar}, ${defaultUpi}, TRUE);
+        INSERT INTO users (id, name, email, password, google_id, role, avatar, upi_id, email_verified, profile_completed)
+        VALUES (${newUserId}, ${name}, ${cleanEmail}, NULL, ${googleId}, 'traveler', ${avatar}, ${defaultUpi}, TRUE, FALSE);
       `;
+
+      needsProfileCompletion = true;
 
       finalUser = {
         id: newUserId,
@@ -69,6 +79,7 @@ export async function POST(req: Request) {
         avatar,
         upiId: defaultUpi,
         emailVerified: true,
+        profileCompleted: false,
       };
     }
 
@@ -79,6 +90,7 @@ export async function POST(req: Request) {
     const response = NextResponse.json({
       success: true,
       user: finalUser,
+      needsProfileCompletion,
       accessibleTrips,
       message: 'Signed in with Google successfully',
     });

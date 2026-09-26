@@ -14,6 +14,7 @@ import {
   AlertCircle,
   Sparkles,
   Send,
+  Building2,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GoogleLogin } from '@react-oauth/google';
@@ -21,8 +22,9 @@ import { GoogleLogin } from '@react-oauth/google';
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAuthSuccess: (user: any) => void;
+  onAuthSuccess: (user: any, needsProfileCompletion?: boolean) => void;
   defaultMode?: 'otp-login' | 'login' | 'register' | 'otp';
+  onSwitchToCorporate?: () => void;
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({
@@ -30,6 +32,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onClose,
   onAuthSuccess,
   defaultMode = 'otp-login',
+  onSwitchToCorporate,
 }) => {
   const [mode, setMode] = useState<'otp-login' | 'login' | 'register' | 'otp'>(defaultMode);
   const [loading, setLoading] = useState(false);
@@ -73,7 +76,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
       setSuccessMessage('Successfully logged in with Google!');
       setTimeout(() => {
-        onAuthSuccess(data.user);
+        onAuthSuccess(data.user, Boolean(data.needsProfileCompletion));
         onClose();
       }, 500);
     } catch (err: any) {
@@ -645,6 +648,24 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </motion.form>
           )}
         </AnimatePresence>
+
+        {/* Corporate / Enterprise Switcher Link */}
+        <div className="mt-5 pt-3.5 border-t border-[#2A322A] flex items-center justify-between text-[11px]">
+          <span className="text-[#8B9A8C]">Traveling for work or company?</span>
+          {onSwitchToCorporate && (
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                onSwitchToCorporate();
+              }}
+              className="text-[#5FA97D] hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+            >
+              <Building2 className="w-3.5 h-3.5" />
+              <span>Corporate Portal →</span>
+            </button>
+          )}
+        </div>
       </motion.div>
     </div>
   );

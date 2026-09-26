@@ -16,6 +16,16 @@ export interface AuthSessionUser {
   role: string;
   upiId?: string;
   emailVerified: boolean;
+  gender?: string;
+  phone?: string;
+  profileCompleted?: boolean;
+  isCorporate?: boolean;
+  organizationId?: string;
+  organizationName?: string;
+  organizationDomain?: string;
+  department?: string;
+  employeeId?: string;
+  costCenter?: string;
 }
 
 /**
@@ -59,6 +69,16 @@ export async function createSessionToken(user: AuthSessionUser): Promise<string>
     role: user.role,
     upiId: user.upiId,
     emailVerified: user.emailVerified,
+    gender: user.gender,
+    phone: user.phone,
+    profileCompleted: user.profileCompleted,
+    isCorporate: user.isCorporate || false,
+    organizationId: user.organizationId,
+    organizationName: user.organizationName,
+    organizationDomain: user.organizationDomain,
+    department: user.department,
+    employeeId: user.employeeId,
+    costCenter: user.costCenter,
   })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()

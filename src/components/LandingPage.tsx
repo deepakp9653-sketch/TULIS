@@ -22,6 +22,7 @@ import {
   Check,
   TrendingUp,
   FolderHeart,
+  Building2,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { LiquidLogo } from './LiquidLogo';
@@ -36,6 +37,7 @@ interface LandingPageProps {
   currentUser?: any;
   onOpenAuth?: () => void;
   onOpenMyTrips?: () => void;
+  onOpenCorporateAuth?: () => void;
 }
 
 interface BarChartItem {
@@ -396,6 +398,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   currentUser,
   onOpenAuth,
   onOpenMyTrips,
+  onOpenCorporateAuth,
 }) => {
   const [sandboxNet, setSandboxNet] = useState<boolean>(false);
 
@@ -448,16 +451,31 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   {currentUser.name?.split(' ')[0] || 'My Trips'}
                 </span>
               </button>
-            ) : onOpenAuth ? (
-              <button
-                onClick={onOpenAuth}
-                className="px-3 py-1.5 rounded-xl bg-surface-raised border border-brand-emerald/40 text-brand-emerald hover:bg-surface-overlay transition-all text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-subtle"
-                title="Sign in with Email OTP via Resend or Google"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-brand-emerald" />
-                <span>Sign In with OTP</span>
-              </button>
-            ) : null}
+            ) : (
+              <>
+                {onOpenAuth && (
+                  <button
+                    onClick={onOpenAuth}
+                    className="px-3 py-1.5 rounded-xl bg-surface-raised border border-brand-emerald/40 text-brand-emerald hover:bg-surface-overlay transition-all text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-subtle"
+                    title="Sign in with Email OTP via Resend or Google"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-brand-emerald" />
+                    <span>Sign In with OTP</span>
+                  </button>
+                )}
+
+                {onOpenCorporateAuth && (
+                  <button
+                    onClick={onOpenCorporateAuth}
+                    className="px-3 py-1.5 rounded-xl bg-surface-raised border border-[#2B3E2F] hover:border-brand-emerald/60 text-ink-secondary hover:text-ink-primary transition-all text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-subtle"
+                    title="Enterprise Corporate Travel & Policy Governance Portal"
+                  >
+                    <Building2 className="w-3.5 h-3.5 text-brand-emerald" />
+                    <span>Corporate Portal</span>
+                  </button>
+                )}
+              </>
+            )}
 
             <LiquidGlassButton
               variant="subtle"
@@ -537,17 +555,27 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </LiquidGlassButton>
               </div>
 
-              {!currentUser && onOpenAuth && (
-                <div className="pt-1">
+              <div className="pt-2 flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                {!currentUser && onOpenAuth && (
                   <button
                     onClick={onOpenAuth}
-                    className="inline-flex items-center gap-2 text-xs font-semibold text-brand-emerald hover:underline cursor-pointer"
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-emerald hover:underline cursor-pointer"
                   >
                     <Sparkles className="w-3.5 h-3.5" />
-                    <span>Have an account? Sign in passwordless with 6-Digit Email OTP →</span>
+                    <span>Squad Traveler? Sign in with OTP →</span>
                   </button>
-                </div>
-              )}
+                )}
+
+                {onOpenCorporateAuth && (
+                  <button
+                    onClick={onOpenCorporateAuth}
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-ink-secondary hover:text-brand-emerald hover:underline cursor-pointer"
+                  >
+                    <Building2 className="w-3.5 h-3.5 text-brand-emerald" />
+                    <span>Business Traveler or Manager? Enter Corporate Portal →</span>
+                  </button>
+                )}
+              </div>
 
               {/* Quick Metrics Cards */}
               <div className="grid grid-cols-3 gap-6 pt-6 border-t border-surface-hairline max-w-lg">

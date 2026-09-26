@@ -26,7 +26,8 @@ export async function GET(req: Request) {
 
       // Fetch latest profile from DB
       const dbUsers = await sql`
-        SELECT id, name, email, role, avatar, upi_id as "upiId", email_verified as "emailVerified"
+        SELECT id, name, email, role, avatar, upi_id as "upiId", email_verified as "emailVerified",
+               gender, phone, profile_completed as "profileCompleted"
         FROM users
         WHERE id = ${sessionUser.id}
         LIMIT 1;
@@ -45,22 +46,25 @@ export async function GET(req: Request) {
           avatar: user.avatar || '',
           upiId: (user as any).upiId || (user as any).upi_id || '',
           emailVerified: Boolean((user as any).emailVerified ?? (user as any).email_verified),
+          gender: (user as any).gender || undefined,
+          phone: (user as any).phone || undefined,
+          profileCompleted: Boolean((user as any).profileCompleted ?? (user as any).profile_completed),
+          isCorporate: Boolean((sessionUser as any).isCorporate),
+          organizationId: (sessionUser as any).organizationId,
+          organizationName: (sessionUser as any).organizationName,
+          organizationDomain: (sessionUser as any).organizationDomain,
+          department: (sessionUser as any).department,
+          employeeId: (sessionUser as any).employeeId,
+          costCenter: (sessionUser as any).costCenter,
         },
         accessibleTrips,
       });
     }
 
-    // 2. Fetch all registered users for demo switcher
-    const users = await sql`
-      SELECT id, name, email, role, avatar, upi_id as "upiId", email_verified as "emailVerified"
-      FROM users
-      ORDER BY created_at ASC
-      LIMIT 20;
-    `;
-
+    // 2. Return ONLY curated sandbox demo users (NEVER expose registered users for privacy)
     return NextResponse.json({
       success: true,
-      users: users.length > 0 ? users : DEMO_USERS,
+      users: DEMO_USERS,
     });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
@@ -439,6 +443,269 @@ export async function POST(req: Request) {
         user: sessionUser,
         accessibleTrips,
         message: `Welcome back, ${sessionUser.name}!`,
+      });
+
+      response.cookies.set({
+        name: 'tulis_session',
+        value: sessionToken,
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 60 * 60 * 24 * 30,
+      });
+
+      return response;
+    }
+
+    // ----------------------------------------------------
+    // Action: CORPORATE-LOGIN (Dedicated Enterprise Authentication)
+    // ----------------------------------------------------
+    if (action === 'corporate-login') {
+      const { email, password, companyDomain, companyName, costCenter, role = 'manager' } = body;
+
+      if (!email || !email.includes('@')) {
+        return NextResponse.json({ success: false, error: 'A valid corporate work email is required.' }, { status: 400 });
+      }
+
+      const cleanEmail = email.trim().toLowerCase();
+      const domain = companyDomain?.trim().toLowerCase().replace(/^@/, '') || cleanEmail.split('@')[1];
+      const orgName = companyName?.trim() || domain.split('.')[0].toUpperCase() + ' Corporate';
+      const cCenter = costCenter?.trim() || 'CC-GLOBAL-01';
+
+      // 1. Find or create Organization in Neon
+      let org: any = null;
+      const existingOrgs = await sql`
+        SELECT * FROM organizations 
+        WHERE LOWER(domain) = ${domain} OR LOWER(email_domain) = ${domain}
+        LIMIT 1;
+      `;
+
+      let orgId: string;
+      if (existingOrgs.length > 0) {
+        org = existingOrgs[0];
+        orgId = org.id;
+      } else {
+        orgId = 'org-' + Date.now();
+        await sql`
+          INSERT INTO organizations (id, name, domain, email_domain, billing_tier, created_by)
+          VALUES (${orgId}, ${orgName}, ${domain}, ${domain}, 'enterprise', 'corp-auth');
+        `;
+        org = { id: orgId, name: orgName, domain, email_domain: domain, billing_tier: 'enterprise' };
+
+        // Seed default corporate policies
+        const defaultPolicies = [
+          { category: 'Food & Dining', daily_cap: 4500, requires_receipt: true, auto_approval_threshold: 2000 },
+          { category: 'Accommodation', daily_cap: 12000, requires_receipt: true, auto_approval_threshold: 7000 },
+          { category: 'Transportation', daily_cap: 3500, requires_receipt: true, auto_approval_threshold: 1500 },
+          { category: 'Flight & Rail', daily_cap: 25000, requires_receipt: true, auto_approval_threshold: 15000 },
+        ];
+        for (const p of defaultPolicies) {
+          const pid = 'pol-' + Math.random().toString(36).substring(2, 9);
+          await sql`
+            INSERT INTO expense_policies (id, organization_id, category, max_amount, daily_cap, requires_receipt, auto_approval_threshold, requires_approval_above)
+            VALUES (${pid}, ${orgId}, ${p.category}, ${p.daily_cap}, ${p.daily_cap}, ${p.requires_receipt}, ${p.auto_approval_threshold}, ${p.auto_approval_threshold})
+            ON CONFLICT DO NOTHING;
+          `;
+        }
+      }
+
+      // 2. Find or create User in users table
+      const userRows = await sql`
+        SELECT id, name, email, password_hash as "passwordHash", role, avatar, upi_id as "upiId"
+        FROM users
+        WHERE LOWER(email) = ${cleanEmail}
+        LIMIT 1;
+      `;
+
+      let userId: string;
+      let userName = cleanEmail.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
+      if (userRows.length > 0) {
+        userId = userRows[0].id;
+        userName = userRows[0].name || userName;
+      } else {
+        userId = 'u-corp-' + Date.now();
+        const tempHash = await hashPassword(password || 'corporate123');
+        await sql`
+          INSERT INTO users (id, name, email, password_hash, password, role, email_verified, profile_completed)
+          VALUES (${userId}, ${userName}, ${cleanEmail}, ${tempHash}, 'corporate123', 'corporate_manager', TRUE, TRUE);
+        `;
+      }
+
+      // 3. Ensure membership in organization_members
+      const memRows = await sql`
+        SELECT * FROM organization_members
+        WHERE organization_id = ${orgId} AND (user_id = ${userId} OR LOWER(email) = ${cleanEmail})
+        LIMIT 1;
+      `;
+
+      if (memRows.length === 0) {
+        await sql`
+          INSERT INTO organization_members (id, organization_id, user_id, email, role, cost_center)
+          VALUES (${'mem-' + Date.now()}, ${orgId}, ${userId}, ${cleanEmail}, ${role}, ${cCenter})
+          ON CONFLICT DO NOTHING;
+        `;
+      }
+
+      // 4. Construct Corporate Session User
+      const sessionUser: AuthSessionUser = {
+        id: userId,
+        name: userName,
+        email: cleanEmail,
+        role: role === 'manager' ? 'corporate_manager' : 'corporate_employee',
+        avatar: '',
+        upiId: `${cleanEmail.split('@')[0]}@corp`,
+        emailVerified: true,
+        profileCompleted: true,
+        isCorporate: true,
+        organizationId: orgId,
+        organizationName: org.name,
+        organizationDomain: org.domain || domain,
+        department: cCenter,
+        costCenter: cCenter,
+      };
+
+      const sessionToken = await createSessionToken(sessionUser);
+
+      const response = NextResponse.json({
+        success: true,
+        user: sessionUser,
+        organization: org,
+        message: `Authenticated successfully to ${org.name} Corporate Suite!`,
+      });
+
+      response.cookies.set({
+        name: 'tulis_session',
+        value: sessionToken,
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 60 * 60 * 24 * 30,
+      });
+
+      return response;
+    }
+
+    // ----------------------------------------------------
+    // Action: COMPLETE-PROFILE (Name, Gender, Mobile Number)
+    // ----------------------------------------------------
+    if (action === 'complete-profile') {
+      const sessionUser = await getCurrentUser();
+      const { userId, name, gender, phone, upiId } = body;
+      const targetId = sessionUser?.id || userId;
+
+      if (!targetId) {
+        return NextResponse.json({ success: false, error: 'User authentication required.' }, { status: 401 });
+      }
+
+      if (!name?.trim() || !gender?.trim() || !phone?.trim()) {
+        return NextResponse.json(
+          { success: false, error: 'Full name, gender, and mobile number are required.' },
+          { status: 400 }
+        );
+      }
+
+      await sql`
+        UPDATE users
+        SET name = ${name.trim()},
+            gender = ${gender.trim()},
+            phone = ${phone.trim()},
+            upi_id = COALESCE(${upiId?.trim() || null}, upi_id),
+            profile_completed = TRUE,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ${targetId};
+      `;
+
+      const updatedRows = await sql`
+        SELECT id, name, email, role, avatar, upi_id as "upiId", email_verified as "emailVerified",
+               gender, phone, profile_completed as "profileCompleted"
+        FROM users
+        WHERE id = ${targetId}
+        LIMIT 1;
+      `;
+
+      if (updatedRows.length === 0) {
+        return NextResponse.json({ success: false, error: 'User record not found.' }, { status: 404 });
+      }
+
+      const u = updatedRows[0];
+      const updatedUser: AuthSessionUser = {
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        role: u.role || 'traveler',
+        avatar: u.avatar || '',
+        upiId: u.upiId || `${u.name.toLowerCase().replace(/\s+/g, '')}@upi`,
+        emailVerified: Boolean(u.emailVerified),
+        gender: u.gender || undefined,
+        phone: u.phone || undefined,
+        profileCompleted: true,
+      };
+
+      const sessionToken = await createSessionToken(updatedUser);
+      const accessibleTrips = await getUserAccessibleTrips(updatedUser.id, updatedUser.email);
+
+      const response = NextResponse.json({
+        success: true,
+        user: updatedUser,
+        accessibleTrips,
+        message: 'Profile completed successfully!',
+      });
+
+      response.cookies.set({
+        name: 'tulis_session',
+        value: sessionToken,
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 60 * 60 * 24 * 30,
+      });
+
+      return response;
+    }
+
+    // ----------------------------------------------------
+    // Action: SWITCH (Demo Sandbox Account Switcher ONLY)
+    // ----------------------------------------------------
+    if (action === 'switch') {
+      const { id, password } = body;
+      const targetDemo = DEMO_USERS.find((u) => u.id === id);
+
+      if (!targetDemo) {
+        return NextResponse.json(
+          { success: false, error: 'For privacy, only official demo accounts can be switched in this sandbox.' },
+          { status: 403 }
+        );
+      }
+
+      if (password !== 'password123') {
+        return NextResponse.json(
+          { success: false, error: 'Incorrect password. Demo password is "password123".' },
+          { status: 401 }
+        );
+      }
+
+      const sessionUser: AuthSessionUser = {
+        id: targetDemo.id,
+        name: targetDemo.name,
+        email: targetDemo.email,
+        role: targetDemo.role,
+        avatar: targetDemo.avatar,
+        upiId: targetDemo.upiId,
+        emailVerified: true,
+        profileCompleted: true,
+      };
+
+      const sessionToken = await createSessionToken(sessionUser);
+      const accessibleTrips = await getUserAccessibleTrips(sessionUser.id, sessionUser.email);
+
+      const response = NextResponse.json({
+        success: true,
+        user: sessionUser,
+        accessibleTrips,
+        message: `Authenticated as ${sessionUser.name}!`,
       });
 
       response.cookies.set({

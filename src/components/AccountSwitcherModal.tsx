@@ -31,6 +31,7 @@ export const AccountSwitcherModal: React.FC<AccountSwitcherModalProps> = ({
   currentUserId,
   onSwitchUser,
 }) => {
+  // Exclusively lock to curated demo personas for privacy protection
   const [users, setUsers] = useState<UserAccount[]>(DEMO_USERS);
   const [selectedUserId, setSelectedUserId] = useState<string>(
     DEMO_USERS.find((u) => u.id !== currentUserId)?.id || 'p2'
@@ -41,21 +42,32 @@ export const AccountSwitcherModal: React.FC<AccountSwitcherModalProps> = ({
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    // Fetch users from API if available
+    // Only load demo accounts; never expose real registered users
     fetch('/api/auth')
       .then((res) => res.json())
       .then((data) => {
         if (data.success && Array.isArray(data.users)) {
-          setUsers(
-            data.users.map((u: any) => ({
-              ...u,
-              password: u.demoPassword || 'password123',
-              accessibleTripIds: ['trip-1'],
-            }))
+          // Strictly filter only official demo users
+          const filtered = data.users.filter(
+            (u: any) =>
+              ['p1', 'p2', 'p3', 'p4', 'p5', 'p6'].includes(u.id) ||
+              u.email.endsWith('@tulis.in') ||
+              u.email.endsWith('@fareshare.in')
           );
+          if (filtered.length > 0) {
+            setUsers(
+              filtered.map((u: any) => ({
+                ...u,
+                password: u.demoPassword || 'password123',
+                accessibleTripIds: ['trip-1'],
+              }))
+            );
+          }
         }
       })
-      .catch((err) => console.warn('Could not fetch remote users, using demo fallback:', err));
+      .catch(() => {
+        setUsers(DEMO_USERS);
+      });
   }, []);
 
   if (!isOpen) return null;
@@ -171,9 +183,22 @@ export const AccountSwitcherModal: React.FC<AccountSwitcherModalProps> = ({
 
         {/* Account Selector Cards */}
         <div>
-          <label className="block text-xs font-bold text-ink-primary mb-2.5">
-            Select Account to Log In
-          </label>
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-xs font-bold text-ink-primary">
+              Select Demo Account to Test
+            </label>
+            <span className="text-[10px] text-emerald-400 font-mono bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full flex items-center gap-1">
+              <ShieldCheck className="w-3 h-3" /> Sandbox Mode
+            </span>
+          </div>
+
+          <div className="mb-3 p-2.5 rounded-xl bg-surface-base border border-surface-hairline text-[11px] text-ink-muted flex items-center gap-2">
+            <Lock className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            <span>
+              Real user accounts are hidden for privacy. Only curated demo squad personas are displayed here.
+            </span>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-56 overflow-y-auto pr-1">
             {users.map((u) => {
               const isSelected = u.id === selectedUserId;

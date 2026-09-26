@@ -76,18 +76,45 @@ import { OfflineQueueIndicator } from '@/components/OfflineQueueIndicator';
 import { AccountSwitcherModal } from '@/components/AccountSwitcherModal';
 import { ShareTripModal } from '@/components/ShareTripModal';
 import { DashboardAccessModal } from '@/components/DashboardAccessModal';
+import { ProfileCompletionModal } from '@/components/ProfileCompletionModal';
+import { TripSelectionGatewayModal } from '@/components/TripSelectionGatewayModal';
 import { DEMO_USERS } from '@/lib/user-store';
 import { logEventToNeon, saveRefundToNeon, updateBookingInNeon, saveBookingToNeon } from '@/lib/db';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Compass, Plus, Key, Sun, Moon } from 'lucide-react';
+import { SafetyDock } from '@/components/SafetyDock';
+import { SafetyModeOnboardingScreen } from '@/components/SafetyModeOnboardingScreen';
+import { GogoFAB } from '@/components/GogoFAB';
+import { GogoInterviewModal } from '@/components/GogoInterviewModal';
+import { GogoPlanPreviewModal } from '@/components/GogoPlanPreviewModal';
+import { ReceiptUploadDropzone } from '@/components/ReceiptUploadDropzone';
+import { ReceiptExtractionReviewModal, ExtractedReceipt } from '@/components/ReceiptExtractionReviewModal';
+import { OrgDashboardModal } from '@/components/OrgDashboardModal';
+import { ApprovalQueueSection } from '@/components/ApprovalQueueSection';
+import { TripChatPanel } from '@/components/TripChatPanel';
+import { CorporateAuthModal } from '@/components/CorporateAuthModal';
+import { CorporateDashboardShell } from '@/components/CorporateDashboardShell';
 
 export default function Home() {
-  const [viewMode, setViewMode] = useState<'landing' | 'app'>('landing');
+  const [viewMode, setViewMode] = useState<'landing' | 'app' | 'corporate'>('landing');
   const [isHydrated, setIsHydrated] = useState<boolean>(false);
 
   // Multi-Trip State Management
   const [trips, setTrips] = useState<Trip[]>([INITIAL_TRIP]);
   const [activeTripId, setActiveTripId] = useState<string>(INITIAL_TRIP.id);
+
+  // Phase 2 Supertool States
+  const [isSafetyOnboardingOpen, setIsSafetyOnboardingOpen] = useState<boolean>(false);
+  const [isGogoInterviewOpen, setIsGogoInterviewOpen] = useState<boolean>(false);
+  const [isGogoPreviewOpen, setIsGogoPreviewOpen] = useState<boolean>(false);
+  const [generatedGogoPlan, setGeneratedGogoPlan] = useState<any | null>(null);
+
+  const [isReceiptDropzoneOpen, setIsReceiptDropzoneOpen] = useState<boolean>(false);
+  const [isReceiptReviewOpen, setIsReceiptReviewOpen] = useState<boolean>(false);
+  const [extractedReceiptData, setExtractedReceiptData] = useState<ExtractedReceipt | null>(null);
+  const [receiptImagePreview, setReceiptImagePreview] = useState<string | null>(null);
+
+  const [isOrgModalOpen, setIsOrgModalOpen] = useState<boolean>(false);
 
   const [participantsMap, setParticipantsMap] = useState<Record<string, Participant[]>>({
     [INITIAL_TRIP.id]: INITIAL_PARTICIPANTS,
@@ -121,6 +148,8 @@ export default function Home() {
   const [isJoinTripOpen, setIsJoinTripOpen] = useState<boolean>(false);
   const [isTripSwitcherOpen, setIsTripSwitcherOpen] = useState<boolean>(false);
   const [isAuthOpen, setIsAuthOpen] = useState<boolean>(false);
+  const [isCorporateAuthOpen, setIsCorporateAuthOpen] = useState<boolean>(false);
+  const [currentCorporateOrg, setCurrentCorporateOrg] = useState<any | null>(null);
   const [isMyTripsOpen, setIsMyTripsOpen] = useState<boolean>(false);
   const [isAccessGateOpen, setIsAccessGateOpen] = useState<boolean>(false);
   const [currentUserSession, setCurrentUserSession] = useState<AuthSessionUser | null>(null);
@@ -128,6 +157,9 @@ export default function Home() {
   const [isAccountSwitcherOpen, setIsAccountSwitcherOpen] = useState<boolean>(false);
   const [isShareTripOpen, setIsShareTripOpen] = useState<boolean>(false);
   const [isDashboardAccessOpen, setIsDashboardAccessOpen] = useState<boolean>(false);
+  const [isProfileCompletionOpen, setIsProfileCompletionOpen] = useState<boolean>(false);
+  const [isTripGatewayOpen, setIsTripGatewayOpen] = useState<boolean>(false);
+  const [userAssociatedTrips, setUserAssociatedTrips] = useState<Trip[]>([]);
 
   // Seamless Light/Dark Theme Management State
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
@@ -592,7 +624,11 @@ export default function Home() {
   };
 
   // Synchronize and showcase strictly the trips associated with this user's account
-  const syncUserTrips = async (user: AuthSessionUser, preferredTripId?: string) => {
+  const syncUserTrips = async (
+    user: AuthSessionUser,
+    preferredTripId?: string,
+    autoEnterDashboard: boolean = false
+  ): Promise<Trip[]> => {
     try {
       const userEmail = user.email.trim().toLowerCase();
       const res = await fetch(`/api/trips?email=${encodeURIComponent(userEmail)}`);
@@ -600,23 +636,43 @@ export default function Home() {
       if (data.success && Array.isArray(data.trips)) {
         const userTrips: Trip[] = data.trips;
         setTrips(userTrips);
+        setUserAssociatedTrips(userTrips);
 
-        if (userTrips.length > 0) {
-          const targetTrip =
-            (preferredTripId && userTrips.find((t) => t.id === preferredTripId)) ||
-            userTrips.find((t) => t.id === activeTripId) ||
-            userTrips[0];
-          setActiveTripId(targetTrip.id);
-          await loadTripById(targetTrip.id, userEmail);
-          setViewMode('app');
-        } else {
-          setActiveTripId('');
-          setViewMode('app');
+        if (autoEnterDashboard) {
+          if (userTrips.length > 0) {
+            const targetTrip =
+              (preferredTripId && userTrips.find((t) => t.id === preferredTripId)) ||
+              userTrips.find((t) => t.id === activeTripId) ||
+              userTrips[0];
+            setActiveTripId(targetTrip.id);
+            await loadTripById(targetTrip.id, userEmail);
+            setViewMode('app');
+          } else {
+            setActiveTripId('');
+            setViewMode('app');
+          }
         }
+        return userTrips;
       }
     } catch (err) {
       console.warn('Could not sync user associated trips:', err);
     }
+    return [];
+  };
+
+  const handleUnlockWithCode = async (code: string) => {
+    const clean = code.trim().toUpperCase();
+    const res = await fetch(`/api/trips?inviteCode=${encodeURIComponent(clean)}`);
+    const data = await res.json();
+    if (data.success && data.trip) {
+      setIsAccessGateOpen(false);
+      setIsTripGatewayOpen(false);
+      setIsDashboardAccessOpen(false);
+      enterAppMode(data.trip.id, clean);
+      triggerToast(`Unlocked trip "${data.trip.title}"!`);
+      return true;
+    }
+    return false;
   };
 
   // Explicit Logout handler: clears session, auth cookies, and resets to landing
@@ -624,6 +680,9 @@ export default function Home() {
     setViewMode('landing');
     setCurrentUserSession(null);
     setIsMyTripsOpen(false);
+    setIsTripGatewayOpen(false);
+    setIsProfileCompletionOpen(false);
+    setUserAssociatedTrips([]);
     setTrips([INITIAL_TRIP]);
     setActiveTripId(INITIAL_TRIP.id);
     setCurrentUserId('p1');
@@ -1064,6 +1123,7 @@ export default function Home() {
     receiptConfidence?: number;
     isDuplicateAcknowledged?: boolean;
     createdAt?: string;
+    costCenter?: string;
   }) => {
     // F19: If simulated offline, queue command in local outbox
     if (isOffline) {
@@ -1116,12 +1176,42 @@ export default function Home() {
       chatSourceRaw: data.chatSourceRaw,
       receiptConfidence: data.receiptConfidence,
       isDuplicateAcknowledged: data.isDuplicateAcknowledged,
+      costCenter: data.costCenter,
+      approvalStatus: trip.organizationId ? 'pending' : 'approved',
     };
 
     setExpensesMap((prev) => ({
       ...prev,
       [trip.id]: [newExpense, ...(prev[trip.id] || [])],
     }));
+
+    if (trip.organizationId) {
+      fetch('/api/approvals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'evaluate-expense',
+          expenseId: newExpense.id,
+          orgId: trip.organizationId,
+          amount: data.totalAmount,
+          category: data.category,
+          hasReceipt: !!data.receiptUrl,
+          costCenter: data.costCenter,
+          userId: currentUserId,
+        }),
+      })
+        .then(async (res) => {
+          const resJson = await res.json();
+          if (resJson.success && resJson.status === 'pending') {
+            triggerToast(`Flagged for corporate manager approval: ${resJson.violationReason}`);
+            recordEvent('APPROVAL_REQUESTED', `Expense "${data.title}" flagged for manager approval.`, {
+              expenseId: newExpense.id,
+              violationReason: resJson.violationReason,
+            });
+          }
+        })
+        .catch((e) => console.warn('Corporate approval check error:', e));
+    }
 
     if (data.bookingId) {
       setBookingsMap((prev) => ({
@@ -1659,8 +1749,12 @@ export default function Home() {
       <>
         <LandingPage
           onEnterApp={() => {
-            if (currentUserSession) {
-              syncUserTrips(currentUserSession);
+            if (currentUserSession?.isCorporate) {
+              setViewMode('corporate');
+            } else if (currentUserSession) {
+              syncUserTrips(currentUserSession, undefined, false).then(() => {
+                setIsTripGatewayOpen(true);
+              });
             } else {
               setIsDashboardAccessOpen(true);
             }
@@ -1669,9 +1763,14 @@ export default function Home() {
           onOpenJoinTrip={() => setIsJoinTripOpen(true)}
           currentUser={currentUserSession}
           onOpenAuth={() => setIsAuthOpen(true)}
+          onOpenCorporateAuth={() => setIsCorporateAuthOpen(true)}
           onOpenMyTrips={() => {
-            if (currentUserSession) {
-              syncUserTrips(currentUserSession);
+            if (currentUserSession?.isCorporate) {
+              setViewMode('corporate');
+            } else if (currentUserSession) {
+              syncUserTrips(currentUserSession, undefined, false).then(() => {
+                setIsTripGatewayOpen(true);
+              });
             } else {
               setIsAuthOpen(true);
             }
@@ -1744,12 +1843,72 @@ export default function Home() {
         <AuthModal
           isOpen={isAuthOpen}
           onClose={() => setIsAuthOpen(false)}
-          onAuthSuccess={async (sessionUser) => {
+          onSwitchToCorporate={() => {
+            setIsAuthOpen(false);
+            setIsCorporateAuthOpen(true);
+          }}
+          onAuthSuccess={async (sessionUser, needsProfileCompletion) => {
             setCurrentUserSession(sessionUser);
             setIsAuthOpen(false);
-            await syncUserTrips(sessionUser);
-            triggerToast(`Welcome, ${sessionUser.name}! Showing your associated trips.`);
+            await syncUserTrips(sessionUser, undefined, false);
+            if (needsProfileCompletion || !sessionUser.profileCompleted) {
+              setIsProfileCompletionOpen(true);
+            } else {
+              setIsTripGatewayOpen(true);
+              triggerToast(`Welcome, ${sessionUser.name}! Choose how you'd like to get started.`);
+            }
           }}
+        />
+
+        <CorporateAuthModal
+          isOpen={isCorporateAuthOpen}
+          onClose={() => setIsCorporateAuthOpen(false)}
+          onCorporateSuccess={(corpUser, org) => {
+            setCurrentUserSession(corpUser);
+            setCurrentCorporateOrg(org);
+            setIsCorporateAuthOpen(false);
+            setViewMode('corporate');
+            triggerToast(`Welcome to ${org?.name || 'Corporate'} Travel Command Center!`);
+          }}
+          onSwitchToNormalLogin={() => {
+            setIsCorporateAuthOpen(false);
+            setIsAuthOpen(true);
+          }}
+        />
+
+        <ProfileCompletionModal
+          isOpen={isProfileCompletionOpen}
+          user={currentUserSession}
+          onComplete={async (updatedUser) => {
+            setCurrentUserSession(updatedUser);
+            setIsProfileCompletionOpen(false);
+            await syncUserTrips(updatedUser, undefined, false);
+            setIsTripGatewayOpen(true);
+            triggerToast(`Profile completed! Welcome aboard, ${updatedUser.name}.`);
+          }}
+          onClose={() => setIsProfileCompletionOpen(false)}
+        />
+
+        <TripSelectionGatewayModal
+          isOpen={isTripGatewayOpen}
+          user={currentUserSession}
+          userTrips={userAssociatedTrips}
+          onSelectTrip={async (selectedTripId) => {
+            await loadTripById(selectedTripId);
+            setIsTripGatewayOpen(false);
+          }}
+          onCreateNewTrip={() => {
+            setIsTripGatewayOpen(false);
+            setIsCreateTripOpen(true);
+          }}
+          onJoinTrip={() => {
+            setIsTripGatewayOpen(false);
+            setIsJoinTripOpen(true);
+          }}
+          onQuickJoinCode={async (code) => {
+            return await handleUnlockWithCode(code);
+          }}
+          onLogout={handleLogout}
         />
 
         <MyTripsModal
@@ -1889,6 +2048,30 @@ export default function Home() {
     );
   }
 
+  if (viewMode === 'corporate') {
+    return (
+      <div className="min-h-screen bg-[#0C110E] text-stone-100 font-sans">
+        <CorporateDashboardShell
+          currentUser={currentUserSession}
+          currentOrg={currentCorporateOrg}
+          onSwitchToSquadDashboard={() => setViewMode('app')}
+          onLogout={() => {
+            fetch('/api/auth', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: 'logout' }),
+            }).catch(console.error);
+            setCurrentUserSession(null);
+            setCurrentCorporateOrg(null);
+            setViewMode('landing');
+            triggerToast('Signed out of corporate session.');
+          }}
+          activeTrips={trips}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-surface-base text-ink-primary font-sans">
       <DashboardShell
@@ -1922,14 +2105,19 @@ export default function Home() {
         onOpenMyTrips={() => {
           if (!currentUserSession) {
             setIsAuthOpen(true);
-            triggerToast('Sign in with Email OTP to access your cloud trips.');
+            triggerToast('Sign in to access your cloud trips.');
           } else {
-            setIsMyTripsOpen(true);
+            syncUserTrips(currentUserSession, undefined, false).then(() => {
+              setIsTripGatewayOpen(true);
+            });
           }
         }}
         onOpenAuth={() => setIsAuthOpen(true)}
         currentUserSession={currentUserSession}
         onGoToLanding={handleLogout}
+        onOpenScanReceipt={() => setIsReceiptDropzoneOpen(true)}
+        onOpenCorporateOrg={() => setViewMode('corporate')}
+        onOpenGogoPlanner={() => setIsGogoInterviewOpen(true)}
       >
         <AnimatePresence mode="wait">
           <motion.div
@@ -2031,6 +2219,53 @@ export default function Home() {
               />
             )}
 
+            {activeTab === 'chat' && (
+              <div className="h-[calc(100vh-14rem)] max-w-4xl mx-auto">
+                <TripChatPanel
+                  tripId={trip.id}
+                  currentUserId={currentUserId}
+                  currentUserName={
+                    currentUserSession?.name ||
+                    participants.find((p) => p.id === currentUserId)?.name ||
+                    'Traveler'
+                  }
+                />
+              </div>
+            )}
+
+            {activeTab === 'corporate' && (
+              <div className="space-y-6 max-w-5xl mx-auto">
+                <div className="p-6 rounded-3xl bg-gradient-to-r from-[#172418] to-[#121A12] border border-[#2D3F2C] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs uppercase font-mono px-2 py-0.5 rounded bg-emerald-950/80 text-emerald-400 border border-emerald-800/40">
+                        Corporate B2B Suite
+                      </span>
+                      <h2 className="text-xl font-bold text-white tracking-tight">Enterprise Travel Spends</h2>
+                    </div>
+                    <p className="text-xs text-stone-400 max-w-xl">
+                      Automated policy enforcement, per-category daily allowances, cost center allocation, and manager approval queues.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsOrgModalOpen(true)}
+                      className="px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-all shadow-lg shadow-emerald-950/40 cursor-pointer"
+                    >
+                      {trip.organizationId ? 'Manage Org Policies' : 'Link Corporate Workspace'}
+                    </button>
+                  </div>
+                </div>
+
+                <ApprovalQueueSection
+                  orgId={trip.organizationId || null}
+                  currentUserId={currentUserId}
+                />
+              </div>
+            )}
+
             {activeTab === 'activity' && (
               <ActivityLogSection events={events} onDeleteEvent={handleDeleteEvent} />
             )}
@@ -2048,6 +2283,7 @@ export default function Home() {
         participants={participants}
         bookings={bookings}
         initialDraft={chatDraftExpense}
+        isCorporate={!!trip.organizationId}
         onSubmitExpense={handleSubmitExpense}
       />
 
@@ -2129,12 +2365,75 @@ export default function Home() {
       <AuthModal
         isOpen={isAuthOpen}
         onClose={() => setIsAuthOpen(false)}
-        onAuthSuccess={async (sessionUser) => {
+        onSwitchToCorporate={() => {
+          setIsAuthOpen(false);
+          setIsCorporateAuthOpen(true);
+        }}
+        onAuthSuccess={async (sessionUser, needsProfileCompletion) => {
           setCurrentUserSession(sessionUser);
           setIsAuthOpen(false);
-          await syncUserTrips(sessionUser);
-          triggerToast(`Welcome, ${sessionUser.name}! Showing your associated trips.`);
+          await syncUserTrips(sessionUser, undefined, false);
+          if (needsProfileCompletion || !sessionUser.profileCompleted) {
+            setIsProfileCompletionOpen(true);
+          } else {
+            setIsTripGatewayOpen(true);
+            triggerToast(`Welcome, ${sessionUser.name}! Choose how you'd like to get started.`);
+          }
         }}
+      />
+
+      {/* Dedicated Corporate Enterprise Auth Modal */}
+      <CorporateAuthModal
+        isOpen={isCorporateAuthOpen}
+        onClose={() => setIsCorporateAuthOpen(false)}
+        onCorporateSuccess={(corpUser, org) => {
+          setCurrentUserSession(corpUser);
+          setCurrentCorporateOrg(org);
+          setIsCorporateAuthOpen(false);
+          setViewMode('corporate');
+          triggerToast(`Welcome to ${org?.name || 'Corporate'} Travel Command Center!`);
+        }}
+        onSwitchToNormalLogin={() => {
+          setIsCorporateAuthOpen(false);
+          setIsAuthOpen(true);
+        }}
+      />
+
+      {/* Mandatory Onboarding Profile Completion for Google & New Users */}
+      <ProfileCompletionModal
+        isOpen={isProfileCompletionOpen}
+        user={currentUserSession}
+        onComplete={async (updatedUser) => {
+          setCurrentUserSession(updatedUser);
+          setIsProfileCompletionOpen(false);
+          await syncUserTrips(updatedUser, undefined, false);
+          setIsTripGatewayOpen(true);
+          triggerToast(`Profile completed! Welcome aboard, ${updatedUser.name}.`);
+        }}
+        onClose={() => setIsProfileCompletionOpen(false)}
+      />
+
+      {/* Post-Login Trip Selection Gateway Hub (Create Trip, Join with Code, or Pre-Existing Trips) */}
+      <TripSelectionGatewayModal
+        isOpen={isTripGatewayOpen}
+        user={currentUserSession}
+        userTrips={userAssociatedTrips}
+        onSelectTrip={async (selectedTripId) => {
+          await loadTripById(selectedTripId);
+          setIsTripGatewayOpen(false);
+        }}
+        onCreateNewTrip={() => {
+          setIsTripGatewayOpen(false);
+          setIsCreateTripOpen(true);
+        }}
+        onJoinTrip={() => {
+          setIsTripGatewayOpen(false);
+          setIsJoinTripOpen(true);
+        }}
+        onQuickJoinCode={async (code) => {
+          return await handleUnlockWithCode(code);
+        }}
+        onLogout={handleLogout}
       />
 
       {/* User Cloud Trips Drawer / Modal */}
@@ -2333,6 +2632,100 @@ export default function Home() {
         participants={participants}
         currentUserId={currentUserId}
         onAddParticipant={handleDirectAddParticipant}
+      />
+
+      {/* Phase 2: Women's Safety Dock (Pulsing SOS, 112 Dial, Police Finder, Audio Shield) */}
+      <SafetyDock
+        isActive={true}
+        userId={currentUserSession?.id || currentUserId}
+        tripId={trip.id}
+        userName={currentUserSession?.name || participants.find((p) => p.id === currentUserId)?.name || 'Traveler'}
+        userPhone={currentUserSession?.phone}
+        onOpenContacts={() => setIsSafetyOnboardingOpen(true)}
+      />
+
+      {/* Safety Mode Onboarding & Contacts Configuration Screen */}
+      <SafetyModeOnboardingScreen
+        isOpen={isSafetyOnboardingOpen}
+        userId={currentUserSession?.id || currentUserId}
+        onComplete={() => setIsSafetyOnboardingOpen(false)}
+        onClose={() => setIsSafetyOnboardingOpen(false)}
+      />
+
+      {/* Phase 2: Gogo Autonomous Conversational Trip Planner FAB */}
+      <GogoFAB onClick={() => setIsGogoInterviewOpen(true)} />
+
+      {/* Gogo Voice & Preset Interview Modal */}
+      <GogoInterviewModal
+        isOpen={isGogoInterviewOpen}
+        onClose={() => setIsGogoInterviewOpen(false)}
+        onPlanGenerated={(plan) => {
+          setGeneratedGogoPlan(plan);
+          setIsGogoPreviewOpen(true);
+        }}
+        currentUserId={currentUserId}
+      />
+
+      {/* Gogo Itinerary Blueprint Review & 1-Click Materialize Modal */}
+      <GogoPlanPreviewModal
+        isOpen={isGogoPreviewOpen}
+        onClose={() => setIsGogoPreviewOpen(false)}
+        plan={generatedGogoPlan}
+        onTripCreated={(newTrip) => {
+          setTrips((prev) => [newTrip, ...prev.filter((t) => t.id !== newTrip.id)]);
+          setActiveTripId(newTrip.id);
+          triggerToast(`Trip "${newTrip.title}" materialized and saved to Neon DB!`);
+        }}
+        currentUserId={currentUserId}
+      />
+
+      {/* Phase 2: Receipt OCR Ingestion Dropzone & Camera Trigger */}
+      <ReceiptUploadDropzone
+        isOpen={isReceiptDropzoneOpen}
+        onClose={() => setIsReceiptDropzoneOpen(false)}
+        tripId={trip.id}
+        onExtractionSuccess={(extracted, previewUrl) => {
+          setExtractedReceiptData(extracted);
+          setReceiptImagePreview(previewUrl);
+          setIsReceiptReviewOpen(true);
+        }}
+      />
+
+      {/* Receipt Extraction Review Modal */}
+      <ReceiptExtractionReviewModal
+        isOpen={isReceiptReviewOpen}
+        onClose={() => setIsReceiptReviewOpen(false)}
+        extractedData={extractedReceiptData}
+        previewUrl={receiptImagePreview}
+        onProceedToSplit={(finalData) => {
+          setIsReceiptReviewOpen(false);
+          setChatDraftExpense({
+            title: finalData.vendor || 'Scanned Receipt',
+            totalAmount: finalData.totalAmount || 0,
+            category:
+              finalData.category.toLowerCase().includes('dining') ||
+              finalData.category.toLowerCase().includes('food')
+                ? 'food'
+                : 'general',
+            receiptUrl: receiptImagePreview || undefined,
+            receiptConfidence: finalData.confidenceScore || 0.92,
+          });
+          setIsSplitDrawerOpen(true);
+        }}
+      />
+
+      {/* Phase 2: Corporate Organization Modal */}
+      <OrgDashboardModal
+        isOpen={isOrgModalOpen}
+        onClose={() => setIsOrgModalOpen(false)}
+        currentTripId={trip.id}
+        userEmail={currentUserSession?.email}
+        onTripLinked={() => {
+          setTrips((prev) =>
+            prev.map((t) => (t.id === trip.id ? { ...t, organizationId: 'org-active' } : t))
+          );
+          triggerToast('Linked this trip to your corporate organization!');
+        }}
       />
 
       {/* Global Toast Notification */}

@@ -38,6 +38,8 @@ import {
   Sun,
   Moon,
   FolderHeart,
+  MessageSquare,
+  Camera,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { UserAvatar } from './UserAvatar';
@@ -73,6 +75,9 @@ interface DashboardShellProps {
   onOpenAuth?: () => void;
   currentUserSession?: any;
   onGoToLanding?: () => void;
+  onOpenScanReceipt?: () => void;
+  onOpenCorporateOrg?: () => void;
+  onOpenGogoPlanner?: () => void;
 }
 
 export const DashboardShell: React.FC<DashboardShellProps> = ({
@@ -105,6 +110,9 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
   onOpenAuth,
   currentUserSession,
   onGoToLanding,
+  onOpenScanReceipt,
+  onOpenCorporateOrg,
+  onOpenGogoPlanner,
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -118,6 +126,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
     { id: 'itinerary' as TabType, label: 'Itinerary', icon: Calendar, count: bookingsCount },
     { id: 'participants' as TabType, label: 'Squad Roster', icon: Users, count: participants.length },
     { id: 'settlement' as TabType, label: 'Settlement Graph', icon: GitCommit, badge: `${simplifiedDebts.length} Paths` },
+    { id: 'chat' as TabType, label: 'Trip Chat & AI', icon: MessageSquare },
     { id: 'activity' as TabType, label: 'Audit Trail', icon: Activity, count: eventCount },
   ];
 
@@ -202,6 +211,31 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
                   )}
                 </button>
               )}
+
+              {/* Phase 2 Intelligent Supertools */}
+              <div className="flex items-center gap-1.5 pt-0.5">
+                {onOpenScanReceipt && (
+                  <button
+                    onClick={onOpenScanReceipt}
+                    className="flex-1 p-2 rounded-xl bg-surface-inset hover:bg-surface-raised border border-surface-hairline text-[11px] font-semibold text-ink-secondary hover:text-brand-emerald flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-subtle"
+                    title="Scan receipt with Groq Vision OCR"
+                  >
+                    <Camera className="w-3.5 h-3.5 text-brand-emerald shrink-0" />
+                    <span className="truncate">Scan Bill Receipt</span>
+                  </button>
+                )}
+
+                {onOpenCorporateOrg && (
+                  <button
+                    onClick={onOpenCorporateOrg}
+                    className="p-2 rounded-xl bg-surface-inset hover:bg-surface-raised border border-surface-hairline text-[11px] font-semibold text-ink-secondary hover:text-brand-emerald flex items-center gap-1.5 transition-all cursor-pointer shrink-0"
+                    title="Switch to Enterprise Corporate Portal"
+                  >
+                    <Building2 className="w-3.5 h-3.5 text-brand-emerald shrink-0" />
+                    <span className="text-[10px] hidden xl:inline">Corp</span>
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Navigation Links with Sliding Active Pill */}

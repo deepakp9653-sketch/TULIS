@@ -37,3 +37,4 @@ tsconfig.tsbuildinfo
 .agent/
 skills/
 *.log
+*.traineddata

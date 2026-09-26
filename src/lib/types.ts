@@ -4,7 +4,7 @@ export type SplitMethod = 'equal' | 'weighted' | 'line_item' | 'room_tier' | 'or
 
 export type BookingCategory = 'transport' | 'lodging' | 'activity' | 'food' | 'other' | 'general';
 
-export type TabType = 'overview' | 'expenses' | 'itinerary' | 'participants' | 'settlement' | 'activity';
+export type TabType = 'overview' | 'expenses' | 'itinerary' | 'participants' | 'settlement' | 'activity' | 'chat' | 'corporate';
 
 export type EventType =
   | 'TRIP_CREATED'
@@ -38,7 +38,9 @@ export type EventType =
   | 'REMINDER_SENT'
   | 'ITINERARY_CONFLICT_FLAGGED'
   | 'ITINERARY_CONFLICT_DISMISSED'
-  | 'OFFLINE_COMMAND_SYNCED';
+  | 'OFFLINE_COMMAND_SYNCED'
+  | 'APPROVAL_REQUESTED'
+  | 'APPROVAL_DECIDED';
 
 export interface Trip {
   id: string;
@@ -52,6 +54,7 @@ export interface Trip {
   organizerId: string; // Participant ID of Creator
   createdAt: string;
   categoryBudgets?: Record<string, number>;
+  organizationId?: string;
 }
 
 export interface Participant {
@@ -146,6 +149,8 @@ export interface Expense {
   isDuplicateAcknowledged?: boolean;
   chatSourceRaw?: string;
   receiptConfidence?: number;
+  costCenter?: string;
+  approvalStatus?: 'pending' | 'approved' | 'rejected';
 }
 
 export interface Payment {

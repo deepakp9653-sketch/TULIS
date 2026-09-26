@@ -13,6 +13,7 @@ interface DynamicSplitDrawerProps {
   participants: Participant[];
   bookings: Booking[];
   initialDraft?: Partial<Expense> & { chatSourceRaw?: string; receiptConfidence?: number };
+  isCorporate?: boolean;
   onSubmitExpense: (expenseData: {
     title: string;
     totalAmount: number;
@@ -28,6 +29,7 @@ interface DynamicSplitDrawerProps {
     chatSourceRaw?: string;
     receiptConfidence?: number;
     createdAt?: string;
+    costCenter?: string;
   }) => void;
 }
 
@@ -37,6 +39,7 @@ export const DynamicSplitDrawer: React.FC<DynamicSplitDrawerProps> = ({
   participants,
   bookings,
   initialDraft,
+  isCorporate,
   onSubmitExpense,
 }) => {
   const [title, setTitle] = useState('');
@@ -46,6 +49,7 @@ export const DynamicSplitDrawer: React.FC<DynamicSplitDrawerProps> = ({
   const [bookingId, setBookingId] = useState<string>('');
   const [category, setCategory] = useState<BookingCategory>('general');
   const [subsidyAmount, setSubsidyAmount] = useState<number>(3000);
+  const [costCenter, setCostCenter] = useState<string>('Engineering');
 
   // Date and Time State (Defaults to current local time, editable)
   const getLocalNowString = () => {
@@ -177,6 +181,7 @@ export const DynamicSplitDrawer: React.FC<DynamicSplitDrawerProps> = ({
       chatSourceRaw: initialDraft?.chatSourceRaw,
       receiptConfidence: initialDraft?.receiptConfidence,
       createdAt: expenseDateTime ? new Date(expenseDateTime).toISOString() : new Date().toISOString(),
+      costCenter: isCorporate ? costCenter : undefined,
     });
     onClose();
   };
@@ -448,6 +453,25 @@ export const DynamicSplitDrawer: React.FC<DynamicSplitDrawerProps> = ({
                   ))}
                 </select>
               </div>
+
+              {isCorporate && (
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-emerald-400 mb-1 flex items-center gap-1.5">
+                    <span>Corporate Cost Center (B2B Policy Routing)</span>
+                  </label>
+                  <select
+                    value={costCenter}
+                    onChange={(e) => setCostCenter(e.target.value)}
+                    className="w-full bg-surface-base border border-emerald-500/40 rounded-xl px-3 py-2.5 text-xs text-ink-primary focus:border-emerald-500 outline-none cursor-pointer"
+                  >
+                    <option value="Engineering">Engineering (Code: ENG-401)</option>
+                    <option value="Sales">Sales & Business Dev (Code: SLS-102)</option>
+                    <option value="Product">Product & Design (Code: PRD-203)</option>
+                    <option value="Leadership">Leadership & Exec (Code: EXEC-001)</option>
+                    <option value="Operations">Operations & Field (Code: OPS-505)</option>
+                  </select>
+                </div>
+              )}
             </div>
           </div>
 
