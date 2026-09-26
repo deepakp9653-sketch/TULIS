@@ -8,7 +8,7 @@ const resend = resendApiKey ? new Resend(resendApiKey) : null;
 const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'Tulis <onboarding@resend.dev>';
 
 // Official Public CDN Logo Assets hosted on GitHub repo
-const TULIS_ICON_URL = 'https://raw.githubusercontent.com/deepakp9653-sketch/TULIS/main/public/tulis-icon.png';
+const TULIS_ICON_URL = 'https://raw.githubusercontent.com/deepakp9653-sketch/TULIS/main/public/tulis-logo.png.jpeg';
 
 export interface SendEmailResult {
   success: boolean;

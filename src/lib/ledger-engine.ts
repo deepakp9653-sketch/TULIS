@@ -181,8 +181,8 @@ export function recalculateExpenseAllocations(
   if (activeParts.length === 0) return expenses;
 
   return expenses.map((e) => {
-    // If manual split and allocations exist, preserve them
-    if (e.splitMethod === 'manual' && e.allocations && e.allocations.length > 0) {
+    // Preserve existing allocations to ensure historical participation in activities is never wiped out
+    if (e.allocations && e.allocations.length > 0) {
       return e;
     }
 
@@ -529,9 +529,8 @@ export function simulateDryRun(
     revisedAmount?: number;
   }
 ): DryRunResult {
-  // 1. Compute baseline
-  const baselineActive = participants.filter((p) => p.status === 'active');
-  const baselineBalances = computeNetBalances(baselineActive, expenses, payments, refunds, bookings);
+  // 1. Compute baseline across all participants (preserves historical activity participation)
+  const baselineBalances = computeNetBalances(participants, expenses, payments, refunds, bookings);
   const baselineMap = new Map<string, number>();
   baselineBalances.forEach((b) => baselineMap.set(b.participant.id, b.netBalance));
 
@@ -544,10 +543,15 @@ export function simulateDryRun(
 
   if (action.type === 'REMOVE_PARTICIPANT' && action.participantId) {
     const target = simParticipants.find((p) => p.id === action.participantId);
-    actionDescription = `Speculative removal of ${target?.name || 'traveler'}. Active shares redistribute across remaining participants.`;
+    actionDescription = `Speculative removal of ${target?.name || 'traveler'}. Historical activity shares are retained at respective amounts.`;
     simParticipants = simParticipants.map((p) =>
       p.id === action.participantId ? { ...p, status: 'removed' as const } : p
     );
+    // Unassign removed participant from future bookings so future bookings reallocate
+    simBookings = simBookings.map((b) => ({
+      ...b,
+      participantIds: (b.participantIds || []).filter((id) => id !== action.participantId),
+    }));
   } else if (action.type === 'CANCEL_BOOKING' && action.bookingId) {
     const targetBooking = simBookings.find((b) => b.id === action.bookingId);
     const policy = action.refundPolicy || 'full';
@@ -589,17 +593,16 @@ export function simulateDryRun(
     });
   }
 
-  // 3. Fold simulated state
-  const simActive = simParticipants.filter((p) => p.status === 'active');
-  const projectedBalances = computeNetBalances(simActive, simExpenses, payments, simRefunds, simBookings);
-  const projectedAudit = computeReconciliationAudit(simActive, simExpenses, payments, simRefunds, simBookings);
+  // 3. Fold simulated state - pass all participants so historical participation is preserved
+  const projectedBalances = computeNetBalances(simParticipants, simExpenses, payments, simRefunds, simBookings);
+  const projectedAudit = computeReconciliationAudit(simParticipants, simExpenses, payments, simRefunds, simBookings);
   const newSimplifiedDebts = simplifyDebts(projectedBalances);
 
   // 4. Compute balance deltas
   const deltas: DryRunDelta[] = simParticipants.map((p) => {
     const cur = baselineMap.get(p.id) || 0;
     const projEntry = projectedBalances.find((b) => b.participant.id === p.id);
-    const proj = projEntry ? projEntry.netBalance : 0;
+    const proj = projEntry ? projEntry.netBalance : cur;
     return {
       participantId: p.id,
       participantName: p.name,
@@ -644,6 +647,20 @@ export function detectAnomalies(
       const t1End = new Date(b1.endTime).getTime();
       const t2Start = new Date(b2.startTime).getTime();
       const t2End = new Date(b2.endTime).getTime();
+
+      // Helper to identify ambient continuous bookings (lodging stays and multi-day vehicle rentals)
+      const isAmbient = (b: Booking) => {
+        if (b.category === 'lodging') return true;
+        const durHours = (new Date(b.endTime).getTime() - new Date(b.startTime).getTime()) / (1000 * 60 * 60);
+        const isRental = /rental|self-drive|hire|car rental|bike rental/i.test(b.title || '');
+        return isRental && durHours > 12;
+      };
+
+      // Continuous ambient bookings do not conflict with daytime activities, meals, or transit
+      if (isAmbient(b1) && !isAmbient(b2)) continue;
+      if (!isAmbient(b1) && isAmbient(b2)) continue;
+      // If both are ambient but different categories (e.g. hotel stay + rental car), no conflict
+      if (isAmbient(b1) && isAmbient(b2) && (b1.category !== 'lodging' || b2.category !== 'lodging')) continue;
 
       // Check if time intervals overlap
       const isOverlap = t1Start < t2End && t2Start < t1End;
@@ -1089,12 +1106,20 @@ export function checkItineraryFeasibility(
   const tripId = trip.id;
   const now = new Date().toISOString();
 
-  // 1. Check for overlapping transit bookings
+  // 1. Check for overlapping transit bookings (two discrete transit legs, e.g. two flights at once)
   for (let i = 0; i < bookings.length; i++) {
     for (let j = i + 1; j < bookings.length; j++) {
       const b1 = bookings[i];
       const b2 = bookings[j];
       if (b1.status === 'cancelled' || b2.status === 'cancelled') continue;
+
+      // Both bookings must be transport legs to be a transit clash
+      if (b1.category !== 'transport' || b2.category !== 'transport') continue;
+
+      // Exclude ambient vehicle rentals
+      const isRental1 = /rental|self-drive|hire|car rental|bike rental/i.test(b1.title || '');
+      const isRental2 = /rental|self-drive|hire|car rental|bike rental/i.test(b2.title || '');
+      if (isRental1 || isRental2) continue;
 
       const t1Start = new Date(b1.startTime).getTime();
       const t1End = new Date(b1.endTime).getTime();
@@ -1106,7 +1131,7 @@ export function checkItineraryFeasibility(
         const p1 = b1.participantIds || [];
         const p2 = b2.participantIds || [];
         const shared = p1.filter((id) => p2.includes(id));
-        if (shared.length > 0 && (b1.category === 'transport' || b2.category === 'transport')) {
+        if (shared.length > 0) {
           conflicts.push({
             id: `conflict-transit-${b1.id}-${b2.id}`,
             tripId,
@@ -1129,9 +1154,14 @@ export function checkItineraryFeasibility(
   lodgings.forEach((lodging) => {
     const checkoutTime = new Date(lodging.endTime).getTime();
     transports.forEach((transit) => {
+      // Exclude rental cars
+      const isRental = /rental|self-drive|hire|car rental/i.test(transit.title || '');
+      if (isRental) return;
+
       const departureTime = new Date(transit.startTime).getTime();
-      // If departure is earlier than checkout for shared travelers
-      if (departureTime < checkoutTime) {
+      const sameDay = new Date(transit.startTime).toDateString() === new Date(lodging.endTime).toDateString();
+      // If departure is earlier than checkout on checkout day for shared travelers
+      if (sameDay && departureTime < checkoutTime) {
         const lPids = lodging.participantIds || [];
         const tPids = transit.participantIds || [];
         const shared = lPids.filter((id) => tPids.includes(id));
@@ -1259,7 +1289,7 @@ export function netCrossTripSquadBalances(
     const refs = refundsMap[t.id] || [];
     const bks = bookingsMap[t.id] || [];
 
-    const balances = computeNetBalances(parts.filter((p) => p.status === 'active'), exps, pays, refs, bks);
+    const balances = computeNetBalances(parts, exps, pays, refs, bks);
 
     balances.forEach((b) => {
       const email = b.participant.email;

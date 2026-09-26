@@ -181,7 +181,7 @@ export const SafetyDock: React.FC<SafetyDockProps> = ({
   return (
     <>
       {/* Floating Safety Dock Pill */}
-      <aside aria-label="Safety controls" className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-2.5">
+      <aside aria-label="Safety controls" className="fixed bottom-22 right-6 z-40 flex flex-col items-end gap-2.5">
         <AnimatePresence>
           {isExpanded && (
             <motion.div

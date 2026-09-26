@@ -45,6 +45,8 @@ import { OverviewSection } from '@/components/OverviewSection';
 import { ItineraryGraph } from '@/components/ItineraryGraph';
 import { ParticipantsSection } from '@/components/ParticipantsSection';
 import { ExpensesSection } from '@/components/ExpensesSection';
+import { PlanAndLedgerView } from '@/components/PlanAndLedgerView';
+import { SquadAndSettlementsView } from '@/components/SquadAndSettlementsView';
 import { DynamicSplitDrawer } from '@/components/DynamicSplitDrawer';
 import { SettlementVisualizer } from '@/components/SettlementVisualizer';
 import { ActivityLogSection } from '@/components/ActivityLogSection';
@@ -92,6 +94,7 @@ import { ReceiptExtractionReviewModal, ExtractedReceipt } from '@/components/Rec
 import { OrgDashboardModal } from '@/components/OrgDashboardModal';
 import { ApprovalQueueSection } from '@/components/ApprovalQueueSection';
 import { TripChatPanel } from '@/components/TripChatPanel';
+import { TripChatFAB } from '@/components/TripChatFAB';
 import { CorporateAuthModal } from '@/components/CorporateAuthModal';
 import { CorporateDashboardShell } from '@/components/CorporateDashboardShell';
 
@@ -102,6 +105,9 @@ export default function Home() {
   // Multi-Trip State Management
   const [trips, setTrips] = useState<Trip[]>([INITIAL_TRIP]);
   const [activeTripId, setActiveTripId] = useState<string>(INITIAL_TRIP.id);
+
+  // Floating Trip Chat & AI State
+  const [isTripChatOpen, setIsTripChatOpen] = useState<boolean>(false);
 
   // Phase 2 Supertool States
   const [isSafetyOnboardingOpen, setIsSafetyOnboardingOpen] = useState<boolean>(false);
@@ -466,7 +472,7 @@ export default function Home() {
   const refunds = refundsMap[trip.id] || [];
 
   const activeParticipants = participants.filter((p) => p.status === 'active');
-  const netBalances = computeNetBalances(activeParticipants, expenses, payments, refunds, bookings);
+  const netBalances = computeNetBalances(participants, expenses, payments, refunds, bookings);
   const currentUser = participants.find((p) => p.id === currentUserId) || participants[0] || {
     id: currentUserId || 'p-default',
     tripId: trip?.id || 'trip-default',
@@ -480,7 +486,7 @@ export default function Home() {
     roomTier: 'standard' as const,
   };
 
-  const audit = computeReconciliationAudit(activeParticipants, expenses, payments, refunds, bookings);
+  const audit = computeReconciliationAudit(participants, expenses, payments, refunds, bookings);
   const rawAnomalies = detectAnomalies(trip, participants, bookings, expenses, payments);
   const activeAnomalies = rawAnomalies.filter((a) => !dismissedAnomalyIds.includes(a.id));
 
@@ -718,6 +724,7 @@ export default function Home() {
       startDate: string;
       endDate: string;
       budgetCeiling: number;
+      safetyModeEnabled?: boolean;
     },
     initialParticipants: Array<{
       name: string;
@@ -742,6 +749,7 @@ export default function Home() {
       startDate: tripData.startDate,
       endDate: tripData.endDate,
       budgetCeiling: tripData.budgetCeiling,
+      safetyModeEnabled: Boolean(tripData.safetyModeEnabled),
       inviteCode,
       organizerId: creatorId,
       createdAt: new Date().toISOString(),
@@ -2079,7 +2087,13 @@ export default function Home() {
         participants={participants}
         currentUserId={currentUserId}
         activeTab={activeTab}
-        onTabChange={setActiveTab}
+        onTabChange={(tab) => {
+          if (tab === 'chat') {
+            setIsTripChatOpen(true);
+          } else {
+            setActiveTab(tab);
+          }
+        }}
         netBalances={effectiveNetBalances}
         simplifiedDebts={effectiveSimplifiedDebts}
         eventCount={events.length}
@@ -2139,7 +2153,19 @@ export default function Home() {
                 vendors={vendors}
                 anomalies={activeAnomalies}
                 currentUserId={currentUserId}
-                onOpenAddExpense={() => setIsSplitDrawerOpen(true)}
+                onOpenAddExpense={(defaults) => {
+                  if (defaults && (defaults.desc || defaults.amount || defaults.payerId)) {
+                    setChatDraftExpense({
+                      title: defaults.desc || 'Trip Expense',
+                      totalAmount: defaults.amount ? Number(defaults.amount) : undefined,
+                      paidById: defaults.payerId || currentUserId,
+                      splitMethod: 'equal',
+                    });
+                  } else {
+                    setChatDraftExpense(undefined);
+                  }
+                  setIsSplitDrawerOpen(true);
+                }}
                 onOpenAddBooking={() => setIsAddBookingOpen(true)}
                 onOpenUpiSetup={() => setIsUpiSetupOpen(true)}
                 onOpenVendors={() => setIsVendorsOpen(true)}
@@ -2154,16 +2180,29 @@ export default function Home() {
                 onOpenRoomOptimizer={() => setIsRoomOptimizerOpen(true)}
                 onOpenSettlementReport={() => setIsSettlementReportOpen(true)}
                 onOpenSquadManager={() => setIsSquadManagerOpen(true)}
+                onOpenGogoPlanner={() => setIsGogoInterviewOpen(true)}
+                onOpenScanReceipt={() => setIsReceiptDropzoneOpen(true)}
+                onToggleSafetyMode={() => {
+                  setTrips((prevTrips) =>
+                    prevTrips.map((t) =>
+                      t.id === trip.id ? { ...t, safetyModeEnabled: !t.safetyModeEnabled } : t
+                    )
+                  );
+                }}
               />
             )}
 
-            {activeTab === 'itinerary' && (
-              <ItineraryGraph
+            {/* MERGED VIEW 1: Plan & Live Ledger (Itinerary + Expenses) */}
+            {(activeTab === 'plan-ledger' || activeTab === 'itinerary' || activeTab === 'expenses') && (
+              <PlanAndLedgerView
                 trip={trip}
                 bookings={bookings}
-                participants={participants}
                 expenses={expenses}
+                participants={participants}
+                refunds={refunds}
+                currentUserId={currentUserId}
                 onOpenAddBooking={() => setIsAddBookingOpen(true)}
+                onOpenAddExpense={() => setIsSplitDrawerOpen(true)}
                 onOpenEditBooking={(b) => {
                   setActiveBookingToEdit(b);
                   setIsEditBookingOpen(true);
@@ -2173,39 +2212,22 @@ export default function Home() {
                   setIsCancelBookingOpen(true);
                 }}
                 onOpenVendors={() => setIsVendorsOpen(true)}
-              />
-            )}
-
-            {activeTab === 'participants' && (
-              <ParticipantsSection
-                participants={participants}
-                netBalances={effectiveNetBalances}
-                onAddParticipant={handleAddParticipant}
-                onToggleStatus={handleToggleParticipantStatus}
-                onUpdateParticipantWeight={handleUpdateParticipantWeight}
-              />
-            )}
-
-            {activeTab === 'expenses' && (
-              <ExpensesSection
-                expenses={expenses}
-                participants={participants}
-                bookings={bookings}
-                refunds={refunds}
-                currentUserId={currentUserId}
-                onOpenAddExpense={() => setIsSplitDrawerOpen(true)}
                 onDisputeAllocation={handleDisputeAllocation}
                 onResolveDispute={handleResolveDispute}
               />
             )}
 
-            {activeTab === 'settlement' && (
-              <SettlementVisualizer
+            {/* MERGED VIEW 2: Squad & Settlements (Squad Roster + Settlement Graph) */}
+            {(activeTab === 'squad-settlements' || activeTab === 'participants' || activeTab === 'settlement') && (
+              <SquadAndSettlementsView
                 participants={participants}
                 netBalances={effectiveNetBalances}
                 simplifiedDebts={effectiveSimplifiedDebts}
                 currentUserId={currentUserId}
                 payments={payments}
+                onAddParticipant={handleAddParticipant}
+                onToggleStatus={handleToggleParticipantStatus}
+                onUpdateParticipantWeight={handleUpdateParticipantWeight}
                 onSettleDebt={handleSettleDebt}
                 onConfirmPaymentReceipt={handleConfirmPaymentReceipt}
                 onDisputePayment={handleDisputePayment}
@@ -2215,6 +2237,10 @@ export default function Home() {
                 onOpenReassignDebt={(s) => {
                   setSelectedDebtToReassign(s);
                   setIsDebtReassignmentOpen(true);
+                }}
+                onOpenExplainBalance={(pid) => {
+                  setExplainParticipantId(pid);
+                  setIsExplainBalanceOpen(true);
                 }}
               />
             )}
@@ -2267,7 +2293,7 @@ export default function Home() {
             )}
 
             {activeTab === 'activity' && (
-              <ActivityLogSection events={events} onDeleteEvent={handleDeleteEvent} />
+              <ActivityLogSection events={events} onDeleteEvent={handleDeleteEvent} trip={trip} />
             )}
           </motion.div>
         </AnimatePresence>
@@ -2634,15 +2660,17 @@ export default function Home() {
         onAddParticipant={handleDirectAddParticipant}
       />
 
-      {/* Phase 2: Women's Safety Dock (Pulsing SOS, 112 Dial, Police Finder, Audio Shield) */}
-      <SafetyDock
-        isActive={true}
-        userId={currentUserSession?.id || currentUserId}
-        tripId={trip.id}
-        userName={currentUserSession?.name || participants.find((p) => p.id === currentUserId)?.name || 'Traveler'}
-        userPhone={currentUserSession?.phone}
-        onOpenContacts={() => setIsSafetyOnboardingOpen(true)}
-      />
+      {/* Phase 2: Women's Safety Dock (Pulsing SOS, 112 Dial, Police Finder, Audio Shield) - Opt-in only */}
+      {trip.safetyModeEnabled && (
+        <SafetyDock
+          isActive={true}
+          userId={currentUserSession?.id || currentUserId}
+          tripId={trip.id}
+          userName={currentUserSession?.name || participants.find((p) => p.id === currentUserId)?.name || 'Traveler'}
+          userPhone={currentUserSession?.phone}
+          onOpenContacts={() => setIsSafetyOnboardingOpen(true)}
+        />
+      )}
 
       {/* Safety Mode Onboarding & Contacts Configuration Screen */}
       <SafetyModeOnboardingScreen
@@ -2654,6 +2682,29 @@ export default function Home() {
 
       {/* Phase 2: Gogo Autonomous Conversational Trip Planner FAB */}
       <GogoFAB onClick={() => setIsGogoInterviewOpen(true)} />
+
+      {/* Floating Trip Chat & AI Panel */}
+      <AnimatePresence>
+        {isTripChatOpen && (
+          <TripChatPanel
+            tripId={trip.id}
+            currentUserId={currentUserId}
+            currentUserName={
+              currentUserSession?.name ||
+              participants.find((p) => p.id === currentUserId)?.name ||
+              'Traveler'
+            }
+            isFloating={true}
+            onClose={() => setIsTripChatOpen(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Floating Trip Chat & AI Icon at Right Bottommost Corner */}
+      <TripChatFAB
+        isOpen={isTripChatOpen}
+        onToggle={() => setIsTripChatOpen((prev) => !prev)}
+      />
 
       {/* Gogo Voice & Preset Interview Modal */}
       <GogoInterviewModal

@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Sparkles, CheckSquare, RefreshCw, Layers } from 'lucide-react';
+import { Sparkles, CheckSquare, RefreshCw } from 'lucide-react';
 
 interface ChatSummaryCardProps {
   summary: string;
@@ -19,13 +19,20 @@ export const ChatSummaryCard: React.FC<ChatSummaryCardProps> = ({
   if (!summary) return null;
 
   return (
-    <div className="p-4 rounded-2xl bg-gradient-to-r from-[#172318] to-[#121A12] border border-[#2B3C2A] space-y-3 shadow-lg">
+    <div className="p-4 rounded-2xl bg-surface-inset border border-surface-hairline space-y-3 shadow-subtle neu-raised">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
+          <div className="w-7 h-7 rounded-xl bg-brand-emerald/15 border border-brand-emerald/30 flex items-center justify-center text-brand-emerald">
             <Sparkles className="w-3.5 h-3.5" />
           </div>
-          <span className="text-xs font-bold text-white uppercase tracking-wider">AI Discussion Catchup</span>
+          <div>
+            <span className="text-xs font-bold text-ink-primary block leading-tight">
+              AI Discussion Catchup
+            </span>
+            <span className="text-[10px] text-ink-muted font-mono">
+              Auto-generated conversation highlights
+            </span>
+          </div>
         </div>
 
         {onRefresh && (
@@ -33,23 +40,30 @@ export const ChatSummaryCard: React.FC<ChatSummaryCardProps> = ({
             type="button"
             onClick={onRefresh}
             disabled={isRefreshing}
-            className="p-1.5 rounded-lg text-stone-400 hover:text-emerald-400 hover:bg-[#1E2A1D] transition-colors"
+            className="p-1.5 rounded-lg text-ink-muted hover:text-brand-emerald hover:bg-surface-elevated transition-colors cursor-pointer"
             title="Refresh AI Summary"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-emerald-400' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-brand-emerald' : ''}`} />
           </button>
         )}
       </div>
 
-      <p className="text-xs text-stone-300 leading-relaxed">{summary}</p>
+      <p className="text-xs text-ink-secondary leading-relaxed bg-surface-base/60 p-3 rounded-xl border border-surface-hairline/60">
+        {summary}
+      </p>
 
       {actionItems && actionItems.length > 0 && (
-        <div className="pt-2 border-t border-[#233122] space-y-1.5">
-          <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">Action Items Detected:</span>
-          <div className="space-y-1">
+        <div className="pt-2 border-t border-surface-hairline space-y-1.5">
+          <span className="text-[10px] font-bold text-ink-muted uppercase tracking-wider block">
+            Action Items Detected ({actionItems.length})
+          </span>
+          <div className="space-y-1.5">
             {actionItems.map((item, idx) => (
-              <div key={idx} className="flex items-start gap-2 text-xs text-stone-300">
-                <CheckSquare className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+              <div
+                key={idx}
+                className="flex items-start gap-2 text-xs text-ink-primary bg-surface-base/40 p-2 rounded-lg border border-surface-hairline/40"
+              >
+                <CheckSquare className="w-3.5 h-3.5 text-brand-emerald shrink-0 mt-0.5" />
                 <span>{item}</span>
               </div>
             ))}

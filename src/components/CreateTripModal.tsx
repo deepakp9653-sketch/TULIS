@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { Trip, Participant } from '@/lib/types';
-import { X, Compass, Calendar, DollarSign, Users, Plus, Trash2, CheckCircle2, ArrowRight, Sparkles, MapPin, User, QrCode, Key } from 'lucide-react';
+import { X, Compass, Calendar, DollarSign, Users, Plus, Trash2, CheckCircle2, ArrowRight, Sparkles, MapPin, User, QrCode, Key, Shield } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface CreateTripModalProps {
@@ -21,6 +21,7 @@ interface CreateTripModalProps {
       startDate: string;
       endDate: string;
       budgetCeiling: number;
+      safetyModeEnabled?: boolean;
     },
     initialParticipants: Array<{
       name: string;
@@ -62,6 +63,7 @@ export const CreateTripModal: React.FC<CreateTripModalProps> = ({
   const [startDate, setStartDate] = useState('2026-12-01');
   const [endDate, setEndDate] = useState('2026-12-08');
   const [budgetCeiling, setBudgetCeiling] = useState<number>(120000);
+  const [safetyModeEnabled, setSafetyModeEnabled] = useState<boolean>(false);
 
   // Step 3: Additional Members
   const [travelers, setTravelers] = useState<
@@ -118,6 +120,7 @@ export const CreateTripModal: React.FC<CreateTripModalProps> = ({
         startDate,
         endDate,
         budgetCeiling,
+        safetyModeEnabled,
       },
       travelers
     );
@@ -308,6 +311,33 @@ export const CreateTripModal: React.FC<CreateTripModalProps> = ({
                       className="w-full bg-surface-base border border-surface-hairline rounded-xl px-3 py-2 text-xs font-numeric font-bold text-ink-primary focus:border-emerald-500 outline-none"
                     />
                   </div>
+                </div>
+
+                {/* Human Safety Shield & Emergency SOS Opt-in Toggle */}
+                <div className="p-3.5 rounded-2xl bg-surface-base border border-surface-hairline flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-500 shrink-0">
+                      <Shield className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold text-ink-primary block">
+                        Human Safety Shield & Emergency SOS
+                      </span>
+                      <span className="text-[11px] text-ink-secondary block">
+                        Turn on for 112 emergency dialer, Audio Shield deterrent & nearest police navigation
+                      </span>
+                    </div>
+                  </div>
+
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={safetyModeEnabled}
+                      onChange={(e) => setSafetyModeEnabled(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-surface-inset peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-rose-500 border border-surface-hairline"></div>
+                  </label>
                 </div>
               </motion.div>
             )}

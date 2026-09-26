@@ -74,6 +74,7 @@ export const INITIAL_TRIP: Trip = {
   inviteCode: 'GOA2026',
   organizerId: 'p1',
   createdAt: '2026-08-20T09:00:00Z',
+  safetyModeEnabled: false,
 };
 
 export const INITIAL_PARTICIPANTS: Participant[] = [

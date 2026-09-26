@@ -120,13 +120,36 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
   const userBalance = netBalances.find((b) => b.participant.id === currentUserId);
   const netAmount = userBalance ? userBalance.netBalance : 0;
 
-  const navItems = [
+  // Normalize legacy tab ids to consolidated views
+  const normalizedActiveTab: TabType =
+    activeTab === 'expenses' || activeTab === 'itinerary'
+      ? 'plan-ledger'
+      : activeTab === 'participants' || activeTab === 'settlement'
+      ? 'squad-settlements'
+      : activeTab;
+
+  interface NavItem {
+    id: TabType;
+    label: string;
+    icon: any;
+    count?: number;
+    badge?: string;
+  }
+
+  const navItems: NavItem[] = [
     { id: 'overview' as TabType, label: 'Overview', icon: LayoutDashboard },
-    { id: 'expenses' as TabType, label: 'Live Ledger', icon: Receipt, count: expensesCount },
-    { id: 'itinerary' as TabType, label: 'Itinerary', icon: Calendar, count: bookingsCount },
-    { id: 'participants' as TabType, label: 'Squad Roster', icon: Users, count: participants.length },
-    { id: 'settlement' as TabType, label: 'Settlement Graph', icon: GitCommit, badge: `${simplifiedDebts.length} Paths` },
-    { id: 'chat' as TabType, label: 'Trip Chat & AI', icon: MessageSquare },
+    {
+      id: 'plan-ledger' as TabType,
+      label: 'Plan & Ledger',
+      icon: Calendar,
+      count: bookingsCount + expensesCount,
+    },
+    {
+      id: 'squad-settlements' as TabType,
+      label: 'Squad & Settlements',
+      icon: Users,
+      count: participants.length,
+    },
     { id: 'activity' as TabType, label: 'Audit Trail', icon: Activity, count: eventCount },
   ];
 
@@ -212,30 +235,17 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
                 </button>
               )}
 
-              {/* Phase 2 Intelligent Supertools */}
-              <div className="flex items-center gap-1.5 pt-0.5">
-                {onOpenScanReceipt && (
-                  <button
-                    onClick={onOpenScanReceipt}
-                    className="flex-1 p-2 rounded-xl bg-surface-inset hover:bg-surface-raised border border-surface-hairline text-[11px] font-semibold text-ink-secondary hover:text-brand-emerald flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-subtle"
-                    title="Scan receipt with Groq Vision OCR"
-                  >
-                    <Camera className="w-3.5 h-3.5 text-brand-emerald shrink-0" />
-                    <span className="truncate">Scan Bill Receipt</span>
-                  </button>
-                )}
-
-                {onOpenCorporateOrg && (
-                  <button
-                    onClick={onOpenCorporateOrg}
-                    className="p-2 rounded-xl bg-surface-inset hover:bg-surface-raised border border-surface-hairline text-[11px] font-semibold text-ink-secondary hover:text-brand-emerald flex items-center gap-1.5 transition-all cursor-pointer shrink-0"
-                    title="Switch to Enterprise Corporate Portal"
-                  >
-                    <Building2 className="w-3.5 h-3.5 text-brand-emerald shrink-0" />
-                    <span className="text-[10px] hidden xl:inline">Corp</span>
-                  </button>
-                )}
-              </div>
+              {/* Intelligent Supertools */}
+              {onOpenScanReceipt && (
+                <button
+                  onClick={onOpenScanReceipt}
+                  className="w-full px-3 py-2 rounded-xl bg-surface-inset hover:bg-surface-raised border border-surface-hairline text-xs font-semibold text-ink-secondary hover:text-brand-emerald flex items-center justify-center gap-2 transition-all cursor-pointer shadow-subtle"
+                  title="Scan receipt with Groq Vision OCR"
+                >
+                  <Camera className="w-3.5 h-3.5 text-brand-emerald shrink-0" />
+                  <span>Scan Bill Receipt</span>
+                </button>
+              )}
             </div>
 
             {/* Navigation Links with Sliding Active Pill */}
@@ -246,7 +256,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
 
               {navItems.map((item) => {
                 const Icon = item.icon;
-                const isActive = activeTab === item.id;
+                const isActive = normalizedActiveTab === item.id;
 
                 return (
                   <motion.button
@@ -275,7 +285,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
                             : 'text-ink-muted group-hover:text-ink-primary'
                         }`}
                       />
-                      <span>{item.label}</span>
+                      <span className="whitespace-nowrap">{item.label}</span>
                     </div>
 
                     <div className="relative z-10 flex items-center gap-1.5">
@@ -311,40 +321,10 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
                   <span>What-If Simulator</span>
                 </button>
               )}
-
-              {onOpenRoomOptimizer && (
-                <button
-                  onClick={onOpenRoomOptimizer}
-                  className="w-full px-3 py-1.5 rounded-lg text-xs text-ink-secondary hover:text-ink-primary hover:bg-surface-raised/60 flex items-center gap-2.5 transition-colors cursor-pointer"
-                >
-                  <Building2 className="w-3.5 h-3.5 text-brand-emerald" />
-                  <span>Room Allocator</span>
-                </button>
-              )}
-
-              {onOpenSettlementReport && (
-                <button
-                  onClick={onOpenSettlementReport}
-                  className="w-full px-3 py-1.5 rounded-lg text-xs text-ink-secondary hover:text-ink-primary hover:bg-surface-raised/60 flex items-center gap-2.5 transition-colors cursor-pointer"
-                >
-                  <CheckCircle2 className="w-3.5 h-3.5 text-brand-emerald" />
-                  <span>Settlement Audit PDF</span>
-                </button>
-              )}
-
-              {showDevTools && onOpenChaosDemo && (
-                <button
-                  onClick={onOpenChaosDemo}
-                  className="w-full px-3 py-1.5 rounded-lg text-xs text-ink-secondary hover:text-ink-primary hover:bg-surface-raised/60 flex items-center gap-2.5 transition-colors cursor-pointer"
-                >
-                  <Zap className="w-3.5 h-3.5 text-amber-500" />
-                  <span>Chaos Test Suite</span>
-                </button>
-              )}
             </div>
 
-            {/* Single Primary Action Entry Point Pair */}
-            <div className="pt-2 space-y-2">
+            {/* Single Primary Action Entry Point */}
+            <div className="pt-2">
               <LiquidGlassButton
                 variant="primary"
                 size="sm"
@@ -353,16 +333,6 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
                 className="w-full justify-center"
               >
                 Log Expense
-              </LiquidGlassButton>
-
-              <LiquidGlassButton
-                variant="glass"
-                size="sm"
-                onClick={onOpenAddBooking}
-                icon={<Plus className="w-3.5 h-3.5 text-ink-muted" />}
-                className="w-full justify-center"
-              >
-                New Booking
               </LiquidGlassButton>
             </div>
           </div>
@@ -609,7 +579,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
                           setIsMobileMenuOpen(false);
                         }}
                         className={`p-2.5 rounded-xl text-xs font-medium flex items-center justify-between transition-all ${
-                          activeTab === item.id
+                          normalizedActiveTab === item.id
                             ? 'bg-brand-emerald text-white font-bold shadow-subtle'
                             : 'bg-surface-inset text-ink-secondary hover:text-ink-primary border border-surface-hairline'
                         }`}
@@ -628,7 +598,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
           <main className="flex-1 p-4 sm:p-8 max-w-7xl w-full mx-auto space-y-6 pb-24 lg:pb-8">
             <AnimatePresence mode="wait">
               <motion.div
-                key={activeTab}
+                key={normalizedActiveTab}
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
@@ -644,7 +614,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
             <button
               onClick={() => onTabChange('overview')}
               className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-lg transition-colors cursor-pointer ${
-                activeTab === 'overview' ? 'text-brand-emerald font-bold' : 'text-ink-muted hover:text-ink-primary'
+                normalizedActiveTab === 'overview' ? 'text-brand-emerald font-bold' : 'text-ink-muted hover:text-ink-primary'
               }`}
             >
               <LayoutDashboard className="w-4 h-4" />
@@ -652,13 +622,13 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
             </button>
 
             <button
-              onClick={() => onTabChange('expenses')}
+              onClick={() => onTabChange('plan-ledger')}
               className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-lg transition-colors cursor-pointer ${
-                activeTab === 'expenses' ? 'text-brand-emerald font-bold' : 'text-ink-muted hover:text-ink-primary'
+                normalizedActiveTab === 'plan-ledger' ? 'text-brand-emerald font-bold' : 'text-ink-muted hover:text-ink-primary'
               }`}
             >
-              <Receipt className="w-4 h-4" />
-              <span className="text-[10px]">Ledger</span>
+              <Calendar className="w-4 h-4" />
+              <span className="text-[10px]">Plan & Ledger</span>
             </button>
 
             {/* Quick Log Button */}
@@ -671,13 +641,13 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
             </button>
 
             <button
-              onClick={() => onTabChange('settlement')}
+              onClick={() => onTabChange('squad-settlements')}
               className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-lg transition-colors cursor-pointer ${
-                activeTab === 'settlement' ? 'text-brand-emerald font-bold' : 'text-ink-muted hover:text-ink-primary'
+                normalizedActiveTab === 'squad-settlements' ? 'text-brand-emerald font-bold' : 'text-ink-muted hover:text-ink-primary'
               }`}
             >
-              <GitCommit className="w-4 h-4" />
-              <span className="text-[10px]">Settle</span>
+              <Users className="w-4 h-4" />
+              <span className="text-[10px]">Squad & Dues</span>
             </button>
 
             <button

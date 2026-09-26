@@ -4,7 +4,17 @@ export type SplitMethod = 'equal' | 'weighted' | 'line_item' | 'room_tier' | 'or
 
 export type BookingCategory = 'transport' | 'lodging' | 'activity' | 'food' | 'other' | 'general';
 
-export type TabType = 'overview' | 'expenses' | 'itinerary' | 'participants' | 'settlement' | 'activity' | 'chat' | 'corporate';
+export type TabType =
+  | 'overview'
+  | 'plan-ledger'
+  | 'squad-settlements'
+  | 'chat'
+  | 'activity'
+  | 'expenses'
+  | 'itinerary'
+  | 'participants'
+  | 'settlement'
+  | 'corporate';
 
 export type EventType =
   | 'TRIP_CREATED'
@@ -55,6 +65,7 @@ export interface Trip {
   createdAt: string;
   categoryBudgets?: Record<string, number>;
   organizationId?: string;
+  safetyModeEnabled?: boolean; // Human safety shield & Emergency SOS toggle
 }
 
 export interface Participant {

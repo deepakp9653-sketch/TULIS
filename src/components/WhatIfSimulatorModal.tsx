@@ -200,7 +200,7 @@ export const WhatIfSimulatorModal: React.FC<WhatIfSimulatorModalProps> = ({
                   ))}
               </select>
               <span className="text-ink-muted text-[11px]">
-                Shares across active itinerary bookings will redistribute immediately.
+                Historical expense participations are preserved at respective amounts; unexpensed bookings will redistribute.
               </span>
             </div>
           )}

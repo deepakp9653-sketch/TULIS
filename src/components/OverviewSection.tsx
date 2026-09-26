@@ -32,6 +32,9 @@ import {
   Building2,
   Zap,
   Compass,
+  Mic,
+  MicOff,
+  ShieldAlert,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { SpotlightCard } from './SpotlightCard';
@@ -39,8 +42,6 @@ import { LiquidGlassButton } from './LiquidGlassButton';
 import { LiquidShaderGradient } from './LiquidShaderGradient';
 import { SpendDonutChart } from './SpendDonutChart';
 import { ParticipantBarChart } from './ParticipantBarChart';
-import { TripVibeGauge } from './TripVibeGauge';
-import { ReconciliationAuditCard } from './ReconciliationAuditCard';
 import { CountUpMoney } from './CountUpMoney';
 import { MOTION_TOKENS } from '@/lib/motion';
 import { AnomalyFeedBanner } from './AnomalyFeedBanner';
@@ -56,7 +57,7 @@ interface OverviewSectionProps {
   vendors?: Vendor[];
   anomalies?: Anomaly[];
   currentUserId: string;
-  onOpenAddExpense: () => void;
+  onOpenAddExpense: (defaults?: { desc?: string; amount?: number; payerId?: string }) => void;
   onOpenAddBooking: () => void;
   onOpenUpiSetup: () => void;
   onOpenVendors?: () => void;
@@ -68,6 +69,9 @@ interface OverviewSectionProps {
   onOpenRoomOptimizer?: () => void;
   onOpenSettlementReport?: () => void;
   onOpenSquadManager?: () => void;
+  onOpenGogoPlanner?: () => void;
+  onOpenScanReceipt?: () => void;
+  onToggleSafetyMode?: () => void;
 }
 
 export const OverviewSection: React.FC<OverviewSectionProps> = ({
@@ -93,6 +97,9 @@ export const OverviewSection: React.FC<OverviewSectionProps> = ({
   onOpenRoomOptimizer,
   onOpenSettlementReport,
   onOpenSquadManager,
+  onOpenGogoPlanner,
+  onOpenScanReceipt,
+  onToggleSafetyMode,
 }) => {
   const variance = calculateVariance(bookings, expenses);
   const totalSpend = variance.totalActual;
@@ -110,7 +117,6 @@ export const OverviewSection: React.FC<OverviewSectionProps> = ({
   const audit = computeReconciliationAudit(participants, expenses, payments, refunds);
 
   const settlementPercent = 85;
-  const cushionPercent = 18;
 
   // Time-aware greeting
   const hour = new Date().getHours();
@@ -119,14 +125,68 @@ export const OverviewSection: React.FC<OverviewSectionProps> = ({
   // Recent 4 expenses for live ledger preview
   const recentExpenses = expenses.slice(0, 4);
 
-  // Focus view to declutter the dashboard workspace
-  const [dashboardView, setDashboardView] = useState<'highlights' | 'ledger' | 'analytics' | 'budget' | 'all'>('highlights');
-
-  // Quick Action card tab and field states (inspired by reference primary search card)
-  const [quickActionTab, setQuickActionTab] = useState<'expense' | 'booking' | 'chat' | 'settle'>('expense');
+  // Quick Action unified entry states
   const [quickDesc, setQuickDesc] = useState('');
   const [quickAmount, setQuickAmount] = useState('');
   const [quickPayerId, setQuickPayerId] = useState(currentUserId);
+  const [isListening, setIsListening] = useState(false);
+
+  // Voice NLP input handler with Web Speech API support
+  const handleVoiceInput = () => {
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      setQuickDesc("Dinner at Martin's Corner with squad");
+      setQuickAmount('2400');
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'en-IN';
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+
+      recognition.onstart = () => setIsListening(true);
+      recognition.onend = () => setIsListening(false);
+      recognition.onerror = () => setIsListening(false);
+
+      recognition.onresult = (event: any) => {
+        const transcript = event.results?.[0]?.[0]?.transcript || '';
+        if (transcript) {
+          const amountMatch = transcript.match(/(?:₹|rs\.?|inr)?\s*(\d+(?:,\d+)*(?:\.\d+)?)/i);
+          if (amountMatch) {
+            const num = amountMatch[1].replace(/,/g, '');
+            setQuickAmount(num);
+            const cleanDesc = transcript
+              .replace(amountMatch[0], '')
+              .replace(/\b(?:paid|spent|for|rupees)\b/gi, '')
+              .trim();
+            setQuickDesc(cleanDesc || transcript);
+          } else {
+            setQuickDesc(transcript);
+          }
+        }
+        setIsListening(false);
+      };
+
+      recognition.start();
+    } catch {
+      setIsListening(false);
+    }
+  };
+
+  const handleQuickSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    onOpenAddExpense({
+      desc: quickDesc.trim() || undefined,
+      amount: quickAmount ? parseFloat(quickAmount) : undefined,
+      payerId: quickPayerId || currentUserId,
+    });
+    setQuickDesc('');
+    setQuickAmount('');
+  };
 
   return (
     <div className="page-container space-y-8 pb-12">
@@ -151,6 +211,32 @@ export const OverviewSection: React.FC<OverviewSectionProps> = ({
               <span className="text-xs font-mono text-ink-muted uppercase">
                 Invite Code: <strong className="text-ink-primary font-bold">{trip.inviteCode || 'GOA2026'}</strong>
               </span>
+              {onToggleSafetyMode && (
+                <>
+                  <span className="text-xs text-ink-muted">•</span>
+                  <button
+                    type="button"
+                    onClick={onToggleSafetyMode}
+                    className={`text-[11px] font-mono font-semibold uppercase tracking-wider px-2.5 py-0.5 rounded-full border flex items-center gap-1.5 transition-all cursor-pointer ${
+                      trip.safetyModeEnabled
+                        ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25'
+                        : 'bg-surface-raised text-ink-muted border-surface-hairline hover:text-ink-secondary hover:border-surface-hairline/80'
+                    }`}
+                    title={
+                      trip.safetyModeEnabled
+                        ? 'Safety Shield (112 SOS & Audio Shield) is active. Click to disable.'
+                        : 'Click to enable Safety Shield (112 SOS & Audio Shield)'
+                    }
+                  >
+                    <ShieldAlert
+                      className={`w-3.5 h-3.5 ${
+                        trip.safetyModeEnabled ? 'text-emerald-400 animate-pulse' : 'text-ink-muted'
+                      }`}
+                    />
+                    <span>{trip.safetyModeEnabled ? 'Safety Shield: Active' : 'Safety Shield: Off'}</span>
+                  </button>
+                </>
+              )}
             </div>
 
             <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight text-ink-primary font-serif-display">
@@ -192,75 +278,89 @@ export const OverviewSection: React.FC<OverviewSectionProps> = ({
         </div>
 
         {/* ============================================================ */}
-        {/* FLOATING PRIMARY ACTION CARD in Neumorphic Soft UI style */}
+        {/* UNIFIED EXPENSE INPUT BAR (Manual + Voice/AI + Quick Actions) */}
         {/* ============================================================ */}
-        <div className="relative z-10 neu-card p-5 sm:p-7 space-y-5">
-          {/* Card Header & Category Selector Tabs */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-surface-hairline pb-4">
-            <div className="flex flex-wrap items-center gap-2.5">
-              {[
-                { id: 'expense', label: 'Log Expense', icon: Receipt },
-                { id: 'booking', label: 'Add Booking', icon: Calendar },
-                { id: 'chat', label: 'AI Voice/Chat Log', icon: Sparkles },
-                { id: 'settle', label: 'Settle Up', icon: Wallet },
-              ].map((tab) => {
-                const Icon = tab.icon;
-                const isActive = quickActionTab === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => setQuickActionTab(tab.id as any)}
-                    className={`px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer ${
-                      isActive
-                        ? 'neu-btn neu-btn-active text-emerald-500 font-bold border-emerald-500/30'
-                        : 'neu-btn text-ink-secondary hover:text-ink-primary'
-                    }`}
-                  >
-                    <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-emerald-500' : 'text-ink-muted'}`} />
-                    <span>{tab.label}</span>
-                  </button>
-                );
-              })}
+        <div className="relative z-10 neu-card p-5 sm:p-6 space-y-4">
+          {/* Card Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-surface-hairline pb-3.5">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-emerald-500/15 text-emerald-500 flex items-center justify-center">
+                <Receipt className="w-4 h-4" />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold text-ink-primary font-serif-display">
+                  Quick Expense Entry
+                </h2>
+                <p className="text-[11px] text-ink-muted">
+                  Type or speak an expense, then add with custom split allocations
+                </p>
+              </div>
             </div>
 
             <div className="flex items-center gap-2 text-[11px] font-mono text-ink-muted font-medium">
-              <span>Split Mode: Equal</span>
+              <span>Auto-Split: Equal / Custom</span>
               <span>•</span>
               <span className="text-emerald-500 font-bold">Zero-Sum Live</span>
             </div>
           </div>
 
-          {/* Active Tab Quick Action Input Controls */}
-          {quickActionTab === 'expense' && (
+          {/* Unified Form Controls */}
+          <form onSubmit={handleQuickSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5 items-end">
-              <div className="md:col-span-4 space-y-1">
+              {/* Description + Voice Button inside field */}
+              <div className="md:col-span-5 space-y-1">
                 <label className="text-[11px] font-bold uppercase tracking-wider text-ink-muted flex items-center gap-1.5">
                   <Receipt className="w-3.5 h-3.5 text-ink-muted" />
                   <span>Description / Item</span>
                 </label>
-                <input
-                  type="text"
-                  value={quickDesc}
-                  onChange={(e) => setQuickDesc(e.target.value)}
-                  placeholder="e.g. Dinner at Martin's Corner"
-                  className="w-full px-3.5 py-2.5 neu-input text-xs font-medium outline-none"
-                />
+                <div className="relative flex items-center">
+                  <input
+                    type="text"
+                    value={quickDesc}
+                    onChange={(e) => setQuickDesc(e.target.value)}
+                    placeholder="e.g. Dinner at Martin's Corner (or speak)"
+                    className="w-full pl-3.5 pr-10 py-2.5 neu-input text-xs font-medium outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleVoiceInput}
+                    title={isListening ? 'Listening... Speak now' : 'Voice input (Natural Language)'}
+                    className={`absolute right-2 p-1.5 rounded-lg transition-all cursor-pointer ${
+                      isListening
+                        ? 'bg-rose-500/20 text-rose-400 animate-pulse'
+                        : 'text-ink-muted hover:text-emerald-400 hover:bg-surface-raised'
+                    }`}
+                  >
+                    {isListening ? (
+                      <MicOff className="w-4 h-4 text-rose-400 animate-bounce" />
+                    ) : (
+                      <Mic className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
               </div>
 
-              <div className="md:col-span-3 space-y-1">
+              {/* Amount field */}
+              <div className="md:col-span-2 space-y-1">
                 <label className="text-[11px] font-bold uppercase tracking-wider text-ink-muted flex items-center gap-1.5">
                   <Wallet className="w-3.5 h-3.5 text-ink-muted" />
                   <span>Amount (₹)</span>
                 </label>
-                <input
-                  type="number"
-                  value={quickAmount}
-                  onChange={(e) => setQuickAmount(e.target.value)}
-                  placeholder="2400"
-                  className="w-full px-3.5 py-2.5 neu-input text-xs font-numeric font-bold outline-none"
-                />
+                <div className="relative flex items-center">
+                  <span className="absolute left-3 text-xs font-numeric font-bold text-ink-muted">₹</span>
+                  <input
+                    type="number"
+                    value={quickAmount}
+                    onChange={(e) => setQuickAmount(e.target.value)}
+                    placeholder="2400"
+                    step="any"
+                    min="0"
+                    className="w-full pl-7 pr-3 py-2.5 neu-input text-xs font-numeric font-bold outline-none"
+                  />
+                </div>
               </div>
 
+              {/* Paid By selector */}
               <div className="md:col-span-3 space-y-1">
                 <label className="text-[11px] font-bold uppercase tracking-wider text-ink-muted flex items-center gap-1.5">
                   <UserAvatar name={currentUser?.name} id={currentUser?.id} size="xs" />
@@ -279,129 +379,55 @@ export const OverviewSection: React.FC<OverviewSectionProps> = ({
                 </select>
               </div>
 
+              {/* Submit Button */}
               <div className="md:col-span-2">
                 <button
-                  onClick={onOpenAddExpense}
-                  className="w-full py-2.5 px-4 neu-btn-primary text-xs font-bold flex items-center justify-center gap-2 cursor-pointer"
+                  type="submit"
+                  className="w-full py-2.5 px-4 neu-btn-primary text-xs font-bold flex items-center justify-center gap-2 cursor-pointer shadow-subtle hover:brightness-105 active:scale-[0.98] transition-all"
                 >
                   <Plus className="w-4 h-4 stroke-[3]" />
-                  <span>Add to Ledger</span>
+                  <span>+ Add to Ledger</span>
                 </button>
               </div>
             </div>
-          )}
 
-          {quickActionTab === 'booking' && (
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5 items-end">
-              <div className="md:col-span-4 space-y-1">
-                <label className="text-[11px] font-bold uppercase tracking-wider text-ink-muted flex items-center gap-1.5">
-                  <Compass className="w-3.5 h-3.5 text-ink-muted" />
-                  <span>Booking Title</span>
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Flight to Goa / Villa Stay"
-                  className="w-full px-3.5 py-2.5 neu-input text-xs font-medium outline-none"
-                />
-              </div>
-
-              <div className="md:col-span-3 space-y-1">
-                <label className="text-[11px] font-bold uppercase tracking-wider text-ink-muted flex items-center gap-1.5">
-                  <Building2 className="w-3.5 h-3.5 text-ink-muted" />
-                  <span>Category</span>
-                </label>
-                <select className="w-full px-3.5 py-2.5 neu-input text-xs font-medium outline-none cursor-pointer">
-                  <option value="FLIGHT">✈️ Flight</option>
-                  <option value="HOTEL">🏨 Hotel / Stay</option>
-                  <option value="CAR">🚗 Transport</option>
-                  <option value="ACTIVITY">🌴 Activity</option>
-                </select>
-              </div>
-
-              <div className="md:col-span-3 space-y-1">
-                <label className="text-[11px] font-bold uppercase tracking-wider text-ink-muted flex items-center gap-1.5">
-                  <Wallet className="w-3.5 h-3.5 text-ink-muted" />
-                  <span>Total Cost (₹)</span>
-                </label>
-                <input
-                  type="number"
-                  placeholder="12500"
-                  className="w-full px-3.5 py-2.5 neu-input text-xs font-numeric font-bold outline-none"
-                />
-              </div>
-
-              <div className="md:col-span-2">
+            {/* Quick Action Sub-bar with 3 clear direct action buttons */}
+            <div className="pt-2 border-t border-surface-hairline/60 flex flex-wrap items-center justify-between gap-3 text-xs">
+              <span className="text-[11px] font-mono text-ink-muted uppercase tracking-wider">
+                Quick Actions:
+              </span>
+              <div className="flex flex-wrap items-center gap-2.5">
                 <button
+                  type="button"
                   onClick={onOpenAddBooking}
-                  className="w-full py-2.5 px-4 neu-btn-primary text-xs font-bold flex items-center justify-center gap-2 cursor-pointer"
+                  className="px-3.5 py-1.5 rounded-xl neu-btn text-xs font-semibold text-ink-secondary hover:text-ink-primary flex items-center gap-2 transition-all cursor-pointer"
                 >
-                  <Plus className="w-4 h-4 stroke-[3]" />
-                  <span>Save Booking</span>
+                  <Calendar className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Add Booking</span>
                 </button>
-              </div>
-            </div>
-          )}
 
-          {quickActionTab === 'chat' && (
-            <div className="flex flex-col md:flex-row items-center gap-3">
-              <div className="flex-1 w-full space-y-1">
-                <label className="text-[11px] font-bold uppercase tracking-wider text-ink-muted flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                  <span>Natural Language Expense Input</span>
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Paid ₹3,200 for scuba diving for Alex, Rahul, and Sarah"
-                  className="w-full px-4 py-2.5 neu-input text-xs font-medium outline-none"
-                />
-              </div>
-              <button
-                onClick={onOpenAddExpense}
-                className="w-full md:w-auto py-2.5 px-6 neu-btn-primary text-xs font-bold flex items-center justify-center gap-2 cursor-pointer shrink-0"
-              >
-                <Sparkles className="w-4 h-4" />
-                <span>Parse & Add</span>
-              </button>
-            </div>
-          )}
+                {onOpenScanReceipt && (
+                  <button
+                    type="button"
+                    onClick={onOpenScanReceipt}
+                    className="px-3.5 py-1.5 rounded-xl neu-btn text-xs font-semibold text-ink-secondary hover:text-ink-primary flex items-center gap-2 transition-all cursor-pointer"
+                  >
+                    <Receipt className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Scan Receipt OCR</span>
+                  </button>
+                )}
 
-          {quickActionTab === 'settle' && (
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5 items-end">
-              <div className="md:col-span-4 space-y-1">
-                <label className="text-[11px] font-bold uppercase tracking-wider text-ink-muted flex items-center gap-1.5">
-                  <UserAvatar name={currentUser?.name} id={currentUser?.id} size="xs" />
-                  <span>Payer (From)</span>
-                </label>
-                <select className="w-full px-3.5 py-2.5 neu-input text-xs font-medium outline-none cursor-pointer">
-                  {participants.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="md:col-span-4 space-y-1">
-                <label className="text-[11px] font-bold uppercase tracking-wider text-ink-muted flex items-center gap-1.5">
-                  <UserAvatar name={organizer?.name || 'Recipient'} id={organizer?.id || 'p1'} size="xs" />
-                  <span>Recipient (To)</span>
-                </label>
-                <select className="w-full px-3.5 py-2.5 neu-input text-xs font-medium outline-none cursor-pointer">
-                  {participants.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="md:col-span-4">
                 <button
+                  type="button"
                   onClick={() => onNavigateTab('settlement')}
-                  className="w-full py-2.5 px-4 neu-btn text-xs font-bold flex items-center justify-center gap-2 cursor-pointer"
+                  className="px-3.5 py-1.5 rounded-xl neu-btn text-xs font-semibold text-ink-secondary hover:text-ink-primary flex items-center gap-2 transition-all cursor-pointer"
                 >
-                  <Wallet className="w-4 h-4 text-emerald-500" />
-                  <span>Go to Settlement Graph</span>
+                  <Wallet className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Settle Up</span>
                 </button>
               </div>
             </div>
-          )}
+          </form>
         </div>
       </div>
 
@@ -411,9 +437,9 @@ export const OverviewSection: React.FC<OverviewSectionProps> = ({
       )}
 
       {/* ============================================================ */}
-      {/* 2. 4-METRIC TELEMETRY RIBBON (21st.dev Spotlight Cards) */}
+      {/* 2. 3-METRIC TELEMETRY RIBBON (21st.dev Spotlight Cards) */}
       {/* ============================================================ */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
         {/* Metric 1: Personal Position */}
         <SpotlightCard
           className={`p-5 flex flex-col justify-between ${
@@ -548,82 +574,12 @@ export const OverviewSection: React.FC<OverviewSectionProps> = ({
             </button>
           </div>
         </SpotlightCard>
-
-        {/* Metric 4: Audit & Accounting Integrity */}
-        <SpotlightCard className="p-5 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between text-xs text-ink-secondary mb-2">
-              <span className="font-medium">Audit Integrity</span>
-              <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-400">
-                Double-Entry
-              </span>
-            </div>
-
-            <div className="flex items-baseline gap-1.5 mt-1">
-              <span className="text-2xl sm:text-3xl font-numeric font-bold text-ink-primary">
-                Net 0.00
-              </span>
-              <span className="text-xs text-emerald-400 font-semibold">Verified</span>
-            </div>
-            <p className="text-[11px] text-ink-muted mt-1.5 line-clamp-1">
-              Deterministic balance reconciliation and zero-sum audit.
-            </p>
-          </div>
-
-          <div className="pt-3 mt-3 border-t border-surface-hairline/60">
-            <button
-              onClick={() => onNavigateTab('activity')}
-              className="text-[11px] font-medium text-ink-secondary hover:text-ink-primary flex items-center justify-between w-full transition-colors cursor-pointer"
-            >
-              <span>View Audit Trail</span>
-              <ArrowRight className="w-3 h-3" />
-            </button>
-          </div>
-        </SpotlightCard>
-      </div>
-
-      {/* Live Financial Reconciliation Audit Card (F1) */}
-      <ReconciliationAuditCard audit={audit} />
-
-      {/* ============================================================ */}
-      {/* 3. WORKSPACE MODULES SELECTOR (DECLUTTER & FOCUS MODES) */}
-      {/* ============================================================ */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2 border-t border-surface-hairline/60">
-        <div>
-          <h2 className="text-sm font-semibold text-ink-primary">Workspace Modules</h2>
-          <p className="text-xs text-ink-muted mt-0.5">
-            Switch views to declutter cards or browse all telemetry
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-1.5 p-1 bg-surface-raised rounded-xl border border-surface-hairline text-xs">
-          {[
-            { id: 'highlights', label: 'Highlights' },
-            { id: 'ledger', label: 'Ledger & Debts' },
-            { id: 'analytics', label: 'Charts & Vibe' },
-            { id: 'budget', label: 'Budget Caps' },
-            { id: 'all', label: 'All Modules' },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setDashboardView(tab.id as any)}
-              className={`px-3 py-1.5 rounded-lg font-medium transition-all cursor-pointer ${
-                dashboardView === tab.id
-                  ? 'bg-surface-overlay text-ink-primary shadow-subtle border border-surface-hairline font-semibold'
-                  : 'text-ink-secondary hover:text-ink-primary'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
       </div>
 
       {/* ============================================================ */}
-      {/* 4. TRANSACTION & SETTLEMENT CARDS (Highlights, Ledger, All) */}
+      {/* 3. TRANSACTION & SETTLEMENT CARDS */}
       {/* ============================================================ */}
-      {(dashboardView === 'highlights' || dashboardView === 'ledger' || dashboardView === 'all') && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Live Ledger Activity Feed Card (7 cols) */}
           <div className="lg:col-span-7">
             <SpotlightCard className="p-6 space-y-4 shadow-paper">
@@ -706,7 +662,7 @@ export const OverviewSection: React.FC<OverviewSectionProps> = ({
                 <LiquidGlassButton
                   variant="subtle"
                   size="sm"
-                  onClick={onOpenAddExpense}
+                  onClick={() => onOpenAddExpense()}
                   icon={<Plus className="w-3.5 h-3.5" />}
                   className="w-full justify-center"
                 >
@@ -786,83 +742,57 @@ export const OverviewSection: React.FC<OverviewSectionProps> = ({
             </SpotlightCard>
           </div>
         </div>
-      )}
 
       {/* ============================================================ */}
-      {/* 5. VISUAL ANALYTICS & HEALTH GAUGES (Analytics, All) */}
+      {/* 4. VISUAL ANALYTICS & EQUITY */}
       {/* ============================================================ */}
-      {(dashboardView === 'analytics' || dashboardView === 'budget' || dashboardView === 'all') && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Category Spend Breakdown (7 cols) */}
-          <div className="lg:col-span-7">
-            <SpotlightCard className="p-6 space-y-4 shadow-paper">
-              <div className="flex items-center justify-between border-b border-surface-hairline/70 pb-3">
-                <div className="flex items-center gap-2">
-                  <PieChart className="w-4 h-4 text-ink-muted" />
-                  <h3 className="font-sans font-semibold text-sm text-ink-primary">
-                    Category Spend Breakdown
-                  </h3>
-                </div>
-                <span className="text-xs font-mono text-ink-muted">
-                  Total: ₹{totalSpend.toLocaleString('en-IN')}
-                </span>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Category Spend Breakdown (6 cols) */}
+        <div className="lg:col-span-6">
+          <SpotlightCard className="p-6 space-y-4 shadow-paper">
+            <div className="flex items-center justify-between border-b border-surface-hairline/70 pb-3">
+              <div className="flex items-center gap-2">
+                <PieChart className="w-4 h-4 text-ink-muted" />
+                <h3 className="font-sans font-semibold text-sm text-ink-primary">
+                  Category Spend Breakdown
+                </h3>
               </div>
+              <span className="text-xs font-mono text-ink-muted">
+                Total: ₹{totalSpend.toLocaleString('en-IN')}
+              </span>
+            </div>
 
-              <SpendDonutChart categoryStats={variance.byCategory} totalActual={totalSpend} />
-            </SpotlightCard>
-          </div>
-
-          {/* Trip Health & Participant Equity (5 cols) */}
-          <div className="lg:col-span-5 space-y-6">
-            {/* Trip Health & Velocity Index */}
-            <SpotlightCard className="p-6 shadow-paper space-y-4">
-              <div className="flex items-center justify-between border-b border-surface-hairline/70 pb-3">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-amber-400" />
-                  <h3 className="font-sans font-semibold text-sm text-ink-primary">
-                    Trip Health & Pace
-                  </h3>
-                </div>
-                <span className="text-[10px] uppercase font-mono font-semibold px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400">
-                  Normal
-                </span>
-              </div>
-
-              <TripVibeGauge
-                settlementPercent={settlementPercent}
-                budgetCushionPercent={cushionPercent}
-                confirmedEventsCount={bookings.length}
-              />
-            </SpotlightCard>
-
-            {/* Traveler Financial Equity & Contribution */}
-            <SpotlightCard className="p-6 shadow-paper space-y-4">
-              <div className="flex items-center justify-between border-b border-surface-hairline/70 pb-3">
-                <div className="flex items-center gap-2">
-                  <Trophy className="w-4 h-4 text-amber-400" />
-                  <h3 className="font-sans font-semibold text-sm text-ink-primary">
-                    Traveler Equity & Fronted Share
-                  </h3>
-                </div>
-                <button
-                  onClick={() => onNavigateTab('participants')}
-                  className="text-xs text-ink-secondary hover:text-ink-primary cursor-pointer"
-                >
-                  Roster
-                </button>
-              </div>
-
-              <ParticipantBarChart netBalances={netBalances} />
-            </SpotlightCard>
-          </div>
+            <SpendDonutChart categoryStats={variance.byCategory} totalActual={totalSpend} />
+          </SpotlightCard>
         </div>
-      )}
+
+        {/* Traveler Financial Equity & Contribution (6 cols) */}
+        <div className="lg:col-span-6">
+          <SpotlightCard className="p-6 shadow-paper space-y-4">
+            <div className="flex items-center justify-between border-b border-surface-hairline/70 pb-3">
+              <div className="flex items-center gap-2">
+                <Trophy className="w-4 h-4 text-amber-400" />
+                <h3 className="font-sans font-semibold text-sm text-ink-primary">
+                  Traveler Equity & Fronted Share
+                </h3>
+              </div>
+              <button
+                onClick={() => onNavigateTab('participants')}
+                className="text-xs text-ink-secondary hover:text-ink-primary cursor-pointer"
+              >
+                Roster
+              </button>
+            </div>
+
+            <ParticipantBarChart netBalances={netBalances} />
+          </SpotlightCard>
+        </div>
+      </div>
 
       {/* ============================================================ */}
-      {/* 6. BUDGET GUARDRAILS & HEURISTIC CEILINGS (Highlights, Budget, All) */}
+      {/* 5. BUDGET GUARDRAILS & HEURISTIC CEILINGS */}
       {/* ============================================================ */}
-      {(dashboardView === 'highlights' || dashboardView === 'budget' || dashboardView === 'all') && (
-        <SpotlightCard className="p-6 shadow-paper space-y-5">
+      <SpotlightCard className="p-6 shadow-paper space-y-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-surface-hairline/60 pb-3">
             <div>
               <div className="flex items-center gap-2">
@@ -949,7 +879,6 @@ export const OverviewSection: React.FC<OverviewSectionProps> = ({
             })}
           </div>
         </SpotlightCard>
-      )}
     </div>
   );
 };

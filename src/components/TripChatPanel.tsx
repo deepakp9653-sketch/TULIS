@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { motion } from 'framer-motion';
 import {
   MessageSquare,
   Send,
@@ -12,8 +13,12 @@ import {
   ChevronDown,
   RefreshCw,
   Layers,
+  CheckCircle2,
+  Bot,
+  Zap,
 } from 'lucide-react';
 import { ChatSummaryCard } from './ChatSummaryCard';
+import { UserAvatar } from './UserAvatar';
 
 interface Message {
   id: string;
@@ -97,60 +102,49 @@ export const TripChatPanel: React.FC<TripChatPanelProps> = ({
                 id: 'welcome-' + tripId,
                 sender_id: 'system',
                 sender_name: 'Tulis Squad Concierge',
-                message_text: 'Welcome to your trip chat room! Plan itineraries, share bill receipts, and collaborate with your squad. 🎒✈️',
-                message_type: 'text',
+                message_text:
+                  'Welcome to your trip chat room! Plan itineraries, share bill receipts, and collaborate with your squad in real-time. 🎒✈️',
+                message_type: 'system',
                 created_at: new Date().toISOString(),
               },
             ];
           }
         }
 
-        setMessages((prev) => {
-          // Merge unique messages by id
-          const idMap = new Map<string, Message>();
-          prev.forEach((m) => idMap.set(m.id, m));
-          serverMsgs.forEach((m) => idMap.set(m.id, m));
-          const merged = Array.from(idMap.values()).sort(
-            (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-          );
-
-          if (typeof window !== 'undefined') {
-            try {
-              localStorage.setItem(cacheKey, JSON.stringify(merged));
-            } catch (e) {}
-          }
-          return merged;
-        });
-
-        if (data.latestSummary) {
-          setSummary(data.latestSummary.summary_markdown);
-          setActionItems(data.latestSummary.action_items || []);
+        setMessages(serverMsgs);
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem(cacheKey, JSON.stringify(serverMsgs));
+          } catch (e) {}
         }
       }
     } catch (err) {
-      console.error('Failed to poll chat:', err);
+      console.warn('Chat fetch fallback to cache:', err);
     }
   };
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, showSummary]);
 
-  const handleSendMessage = async (textToSend?: string) => {
-    const finalMsg = (textToSend !== undefined ? textToSend : inputText).trim();
-    if (!finalMsg || isSending) return;
+  const handleSendMessage = async (textOverride?: string) => {
+    const textToSend = textOverride || inputText;
+    if (!textToSend.trim() || isSending) return;
 
-    // Optimistic local update so it never disappears on refresh or network lag
-    const tempId = 'msg-' + Date.now();
+    const finalMsg = textToSend.trim();
+    if (!textOverride) setInputText('');
+
+    const tempId = 'temp-' + Date.now();
     const optimisticMsg: Message = {
       id: tempId,
       sender_id: currentUserId,
       sender_name: currentUserName,
       message_text: finalMsg,
-      message_type: 'text',
+      message_type: 'user',
       created_at: new Date().toISOString(),
     };
 
+    // Update local state immediately
     setMessages((prev) => {
       const updated = [...prev, optimisticMsg];
       if (typeof window !== 'undefined') {
@@ -160,9 +154,9 @@ export const TripChatPanel: React.FC<TripChatPanelProps> = ({
       }
       return updated;
     });
-    setInputText('');
 
     setIsSending(true);
+
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
@@ -227,19 +221,27 @@ export const TripChatPanel: React.FC<TripChatPanelProps> = ({
     'Cab booking confirmed 🚕',
     'Who has the villa keys? 🔑',
     'Meeting in hotel lobby at 8 PM 📍',
+    '@gogo check restaurant recommendations 🍽️',
   ];
 
   const content = (
-    <div className="flex flex-col h-full bg-[#111711] border border-[#263525] rounded-3xl overflow-hidden shadow-2xl">
-      {/* Header */}
-      <div className="p-4 bg-[#141C14] border-b border-[#253324] flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+    <div className="flex flex-col h-full bg-surface-raised border border-surface-hairline rounded-3xl neu-raised shadow-paper overflow-hidden">
+      {/* 1. Synced Header */}
+      <div className="p-4 bg-surface-raised/95 border-b border-surface-hairline flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-brand-emerald/15 border border-brand-emerald/30 flex items-center justify-center text-brand-emerald shadow-subtle">
             <MessageSquare className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="text-xs font-bold text-white tracking-wide">Trip Group Chat</h3>
-            <span className="text-[10px] text-emerald-400 font-medium">Live Synchronized</span>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-bold text-ink-primary font-serif-display">
+                Trip Squad Live Chat
+              </h3>
+              <span className="w-2 h-2 rounded-full bg-brand-emerald animate-pulse" />
+            </div>
+            <span className="text-[10px] text-ink-muted font-mono block">
+              Synchronized with Neon PostgreSQL
+            </span>
           </div>
         </div>
 
@@ -248,12 +250,12 @@ export const TripChatPanel: React.FC<TripChatPanelProps> = ({
             type="button"
             onClick={handleGenerateSummary}
             disabled={isSummarizing}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-950/70 hover:bg-emerald-900/80 border border-emerald-800/40 text-[11px] font-semibold text-emerald-300 transition-all shadow"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-inset hover:bg-surface-elevated border border-surface-hairline text-[11px] font-semibold text-brand-emerald transition-all shadow-subtle cursor-pointer"
           >
             {isSummarizing ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400" />
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-brand-emerald" />
             ) : (
-              <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+              <Sparkles className="w-3.5 h-3.5 text-brand-emerald" />
             )}
             <span>AI Catchup</span>
           </button>
@@ -261,7 +263,7 @@ export const TripChatPanel: React.FC<TripChatPanelProps> = ({
           {onClose && (
             <button
               onClick={onClose}
-              className="p-1.5 rounded-xl text-stone-400 hover:text-white hover:bg-stone-800 transition-colors"
+              className="p-1.5 rounded-xl text-ink-muted hover:text-ink-primary hover:bg-surface-elevated transition-colors cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -269,9 +271,9 @@ export const TripChatPanel: React.FC<TripChatPanelProps> = ({
         </div>
       </div>
 
-      {/* Optional AI Summary Section */}
+      {/* 2. Optional AI Summary Card */}
       {showSummary && summary && (
-        <div className="p-3 bg-[#0E140E] border-b border-[#212C20] shrink-0">
+        <div className="p-3.5 bg-surface-inset/60 border-b border-surface-hairline shrink-0">
           <ChatSummaryCard
             summary={summary}
             actionItems={actionItems}
@@ -281,34 +283,74 @@ export const TripChatPanel: React.FC<TripChatPanelProps> = ({
         </div>
       )}
 
-      {/* Messages Stream */}
-      <div className="flex-1 p-4 overflow-y-auto space-y-3 custom-scrollbar">
+      {/* 3. Messages Stream */}
+      <div className="flex-1 p-4 sm:p-5 overflow-y-auto space-y-4 custom-scrollbar">
         {messages.length === 0 ? (
-          <div className="py-12 text-center space-y-2">
-            <div className="w-10 h-10 rounded-2xl bg-[#172017] border border-[#273626] flex items-center justify-center mx-auto text-stone-500">
-              <MessageSquare className="w-5 h-5" />
+          <div className="py-16 text-center space-y-2">
+            <div className="w-12 h-12 rounded-2xl bg-surface-inset border border-surface-hairline flex items-center justify-center mx-auto text-ink-muted">
+              <MessageSquare className="w-6 h-6" />
             </div>
-            <p className="text-xs text-stone-400">No chat messages yet.</p>
-            <p className="text-[11px] text-stone-600">Start the conversation with your trip squad!</p>
+            <p className="text-xs font-semibold text-ink-primary">No chat messages yet.</p>
+            <p className="text-[11px] text-ink-muted">
+              Say hello or attach a receipt to start the squad conversation!
+            </p>
           </div>
         ) : (
           messages.map((msg) => {
             const isMe = msg.sender_id === currentUserId;
-            return (
-              <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
-                <span className="text-[10px] text-stone-500 mb-1 px-1">{msg.sender_name}</span>
-                <div
-                  className={`max-w-[85%] px-3.5 py-2.5 rounded-2xl text-xs leading-relaxed ${
-                    isMe
-                      ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-tr-none shadow-md shadow-emerald-950/40'
-                      : 'bg-[#1A241A] border border-[#2A3929] text-stone-200 rounded-tl-none'
-                  }`}
-                >
-                  {msg.message_text}
+            const isSystem = msg.sender_id === 'system';
+
+            if (isSystem) {
+              return (
+                <div key={msg.id} className="flex justify-center my-3">
+                  <div className="max-w-md p-3 rounded-2xl bg-surface-inset/80 border border-surface-hairline text-center text-xs space-y-1 shadow-subtle">
+                    <div className="flex items-center justify-center gap-1.5 text-brand-emerald font-bold text-[11px]">
+                      <Bot className="w-3.5 h-3.5" />
+                      <span>{msg.sender_name}</span>
+                    </div>
+                    <p className="text-ink-secondary text-[11px] leading-relaxed">
+                      {msg.message_text}
+                    </p>
+                  </div>
                 </div>
-                <span className="text-[9px] text-stone-600 mt-1 px-1">
-                  {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </span>
+              );
+            }
+
+            return (
+              <div
+                key={msg.id}
+                className={`flex items-end gap-2 ${isMe ? 'justify-end' : 'justify-start'}`}
+              >
+                {!isMe && (
+                  <div className="shrink-0 mb-4">
+                    <UserAvatar name={msg.sender_name} id={msg.sender_id} size="sm" />
+                  </div>
+                )}
+
+                <div className={`flex flex-col max-w-[80%] ${isMe ? 'items-end' : 'items-start'}`}>
+                  {!isMe && (
+                    <span className="text-[10px] font-semibold text-ink-muted mb-1 px-1">
+                      {msg.sender_name}
+                    </span>
+                  )}
+
+                  <div
+                    className={`px-4 py-2.5 text-xs leading-relaxed transition-all ${
+                      isMe
+                        ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-2xl rounded-tr-none shadow-sm'
+                        : 'bg-surface-base border border-surface-hairline text-ink-primary rounded-2xl rounded-tl-none shadow-subtle'
+                    }`}
+                  >
+                    {msg.message_text}
+                  </div>
+
+                  <span className="text-[9px] font-mono text-ink-muted mt-1 px-1">
+                    {new Date(msg.created_at).toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </span>
+                </div>
               </div>
             );
           })
@@ -316,22 +358,22 @@ export const TripChatPanel: React.FC<TripChatPanelProps> = ({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Quick Prompts */}
-      <div className="px-3 pt-2 pb-1 bg-[#131B13] border-t border-[#202C1F] flex gap-1.5 overflow-x-auto custom-scrollbar shrink-0">
+      {/* 4. Quick Prompts Bar */}
+      <div className="px-3.5 py-2 bg-surface-inset/70 border-t border-surface-hairline flex gap-2 overflow-x-auto scrollbar-none shrink-0">
         {QUICK_PROMPTS.map((prompt, i) => (
           <button
             key={i}
             type="button"
             onClick={() => handleSendMessage(prompt)}
-            className="text-[10px] px-2.5 py-1 rounded-lg bg-[#182318] hover:bg-[#202E1F] border border-[#2A3B29] text-stone-300 whitespace-nowrap transition-colors"
+            className="text-[11px] px-3 py-1.5 rounded-xl bg-surface-raised hover:bg-surface-elevated border border-surface-hairline text-ink-secondary hover:text-ink-primary whitespace-nowrap transition-colors cursor-pointer shadow-subtle"
           >
             {prompt}
           </button>
         ))}
       </div>
 
-      {/* Input Bar */}
-      <div className="p-3 bg-[#141C14] border-t border-[#233122] flex items-center gap-2 shrink-0">
+      {/* 5. Input Field with Glassmorphic Send Button */}
+      <div className="p-3.5 bg-surface-raised/95 border-t border-surface-hairline flex items-center gap-2.5 shrink-0">
         <input
           type="text"
           value={inputText}
@@ -339,21 +381,27 @@ export const TripChatPanel: React.FC<TripChatPanelProps> = ({
           onKeyDown={(e) => {
             if (e.key === 'Enter') handleSendMessage();
           }}
-          placeholder="Message trip squad..."
-          className="flex-1 bg-[#0E130E] border border-[#283827] rounded-xl px-3 py-2 text-xs text-stone-100 placeholder-stone-500 focus:outline-none focus:border-emerald-500"
+          placeholder="Message trip squad or ask AI..."
+          className="flex-1 bg-surface-inset border border-surface-hairline rounded-2xl px-4 py-2.5 text-xs text-ink-primary placeholder:text-ink-muted focus:outline-none focus:border-brand-emerald focus:ring-1 focus:ring-brand-emerald/30 transition-all"
           disabled={isSending}
         />
+
         <button
           type="button"
           onClick={() => handleSendMessage()}
           disabled={!inputText.trim() || isSending}
-          className={`p-2.5 rounded-xl transition-all ${
+          className={`p-2.5 rounded-xl font-bold transition-all cursor-pointer flex items-center justify-center shrink-0 ${
             inputText.trim() && !isSending
-              ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-950/50'
-              : 'bg-[#1C251B] text-stone-600 cursor-not-allowed'
+              ? 'bg-ink-primary text-surface-base hover:opacity-90 shadow-subtle active:scale-95'
+              : 'bg-surface-inset text-ink-muted cursor-not-allowed opacity-60'
           }`}
+          title="Send message"
         >
-          {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+          {isSending ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Send className="w-4 h-4" />
+          )}
         </button>
       </div>
     </div>
@@ -361,9 +409,15 @@ export const TripChatPanel: React.FC<TripChatPanelProps> = ({
 
   if (isFloating) {
     return (
-      <div className="fixed bottom-20 right-6 z-40 w-80 sm:w-96 h-[500px] animate-in slide-in-from-bottom-5 duration-200">
+      <motion.div
+        initial={{ opacity: 0, y: 24, scale: 0.95 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 24, scale: 0.95 }}
+        transition={{ type: 'spring', damping: 26, stiffness: 320 }}
+        className="fixed bottom-20 right-4 sm:right-6 z-50 w-[calc(100vw-2rem)] sm:w-[420px] h-[580px] max-h-[calc(100vh-6.5rem)] shadow-2xl rounded-3xl overflow-hidden"
+      >
         {content}
-      </div>
+      </motion.div>
     );
   }
 
