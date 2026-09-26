@@ -216,25 +216,6 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
                 </div>
               </button>
 
-              {/* My Cloud Trips Quick Launcher */}
-              {onOpenMyTrips && (
-                <button
-                  onClick={onOpenMyTrips}
-                  className="w-full px-3 py-1.5 rounded-xl bg-surface-inset hover:bg-surface-raised border border-surface-hairline text-xs font-medium text-ink-secondary hover:text-ink-primary flex items-center justify-between transition-all cursor-pointer group"
-                  title="Manage personal cloud trips"
-                >
-                  <div className="flex items-center gap-2">
-                    <FolderHeart className="w-3.5 h-3.5 text-brand-emerald" />
-                    <span>My Trips</span>
-                  </div>
-                  {currentUserSession && (
-                    <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-brand-emerald/15 text-brand-emerald">
-                      {currentUserSession.name?.split(' ')[0] || 'Cloud'}
-                    </span>
-                  )}
-                </button>
-              )}
-
               {/* Intelligent Supertools */}
               {onOpenScanReceipt && (
                 <button

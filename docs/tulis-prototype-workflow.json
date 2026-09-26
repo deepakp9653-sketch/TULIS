@@ -1,0 +1,245 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Tulis Prototype End-to-End Workflow",
+    "animation": "trace",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "intake-and-ledger",
+        "label": "Intake to Ledger",
+        "focus": ["traveler", "client_shell", "perception_ai", "ledger_engine", "anomaly_guard"],
+        "note": "Follow expense capture from user and AI perception through double-entry allocation and invariant verification."
+      },
+      {
+        "id": "settlement-and-upi",
+        "label": "Settlement & UPI Rails",
+        "focus": ["ledger_engine", "netting_engine", "upi_rail", "reconciliation"],
+        "note": "Observe greedy debt compression netting debts down to minimal transfers dispatched via instant UPI."
+      },
+      {
+        "id": "simulation-and-store",
+        "label": "Simulation & Event Store",
+        "focus": ["ledger_engine", "what_if_sim", "event_store", "reconciliation"],
+        "note": "Isolate speculative what-if dry runs alongside immutable event persistence in Neon PostgreSQL."
+      }
+    ],
+    "output": "docs/tulis-prototype-workflow.html"
+  },
+  "lanes": [
+    { "id": "client", "label": "Client & User Surface" },
+    { "id": "perception", "label": "AI & Simulation Services" },
+    { "id": "engine", "label": "Core Ledger & Settlement Engine" },
+    { "id": "persistence", "label": "Persistence & Payment Rails" }
+  ],
+  "phases": [
+    { "id": "intake", "label": "Intake & Perception", "fromCol": 0, "toCol": 1 },
+    { "id": "accounting", "label": "Allocation & Integrity", "fromCol": 2, "toCol": 3, "variant": "emphasis" },
+    { "id": "settlement", "label": "Compression & Settlement", "fromCol": 4, "toCol": 5, "variant": "dashed" }
+  ],
+  "groups": [
+    { "id": "intake_group", "label": "Capture & perception", "lane": "perception", "fromCol": 1, "toCol": 1, "variant": "emphasis" },
+    { "id": "ledger_group", "label": "Ledger processing", "lane": "engine", "fromCol": 2, "toCol": 3, "variant": "emphasis" },
+    { "id": "settlement_group", "label": "Debt resolution", "lane": "persistence", "fromCol": 4, "toCol": 5, "variant": "dashed" }
+  ],
+  "mainPath": [
+    "traveler",
+    "client_shell",
+    "ledger_engine",
+    "anomaly_guard",
+    "netting_engine",
+    "upi_rail",
+    "event_store",
+    "reconciliation"
+  ],
+  "nodes": [
+    {
+      "id": "traveler",
+      "lane": "client",
+      "col": 0,
+      "type": "external",
+      "label": "Traveler / Squad",
+      "sublabel": "logs trip expense",
+      "width": 144
+    },
+    {
+      "id": "client_shell",
+      "lane": "client",
+      "col": 1,
+      "type": "frontend",
+      "label": "Client Shell",
+      "sublabel": "Next.js 16 + sync queue",
+      "brand": "next-js",
+      "width": 148
+    },
+    {
+      "id": "perception_ai",
+      "lane": "perception",
+      "col": 1,
+      "type": "backend",
+      "label": "AI Perception",
+      "sublabel": "Groq OCR & Whisper",
+      "tag": "multimodal",
+      "width": 148
+    },
+    {
+      "id": "ledger_engine",
+      "lane": "engine",
+      "col": 2,
+      "type": "backend",
+      "label": "Ledger Engine",
+      "sublabel": "deterministic splits",
+      "tag": "invariant math",
+      "width": 148
+    },
+    {
+      "id": "anomaly_guard",
+      "lane": "engine",
+      "col": 3,
+      "type": "security",
+      "label": "Integrity Guard",
+      "sublabel": "zero-sum invariant",
+      "tag": "strict audit",
+      "width": 148
+    },
+    {
+      "id": "what_if_sim",
+      "lane": "perception",
+      "col": 3,
+      "type": "backend",
+      "label": "What-If Simulator",
+      "sublabel": "zero-disk dry runs",
+      "tag": "in-memory fold",
+      "width": 148
+    },
+    {
+      "id": "netting_engine",
+      "lane": "engine",
+      "col": 4,
+      "type": "backend",
+      "label": "Netting Engine",
+      "sublabel": "O(N log N) compression",
+      "tag": "<= N-1 paths",
+      "width": 148
+    },
+    {
+      "id": "upi_rail",
+      "lane": "persistence",
+      "col": 4,
+      "type": "messagebus",
+      "label": "UPI Rails",
+      "sublabel": "dynamic QR & deep links",
+      "width": 148
+    },
+    {
+      "id": "event_store",
+      "lane": "persistence",
+      "col": 5,
+      "type": "database",
+      "label": "Neon Ledger",
+      "sublabel": "PostgreSQL 16 events",
+      "brand": "postgresql",
+      "width": 148
+    },
+    {
+      "id": "reconciliation",
+      "lane": "client",
+      "col": 5,
+      "type": "frontend",
+      "label": "Audit & Settle",
+      "sublabel": "balanced state & exports",
+      "width": 148
+    }
+  ],
+  "edges": [
+    {
+      "id": "log-spend",
+      "from": "traveler",
+      "to": "client_shell",
+      "label": "log spend",
+      "variant": "default"
+    },
+    {
+      "id": "ai-intake",
+      "from": "client_shell",
+      "to": "perception_ai",
+      "label": "receipt / audio",
+      "variant": "dashed"
+    },
+    {
+      "id": "parsed-feed",
+      "from": "perception_ai",
+      "to": "ledger_engine",
+      "label": "parsed items",
+      "variant": "emphasis"
+    },
+    {
+      "id": "manual-split",
+      "from": "client_shell",
+      "to": "ledger_engine",
+      "label": "manual split",
+      "variant": "default"
+    },
+    {
+      "id": "verify-math",
+      "from": "ledger_engine",
+      "to": "anomaly_guard",
+      "variant": "emphasis"
+    },
+    {
+      "id": "speculate-sim",
+      "from": "ledger_engine",
+      "to": "what_if_sim",
+      "label": "dry-run fold",
+      "variant": "dashed",
+      "role": "branch"
+    },
+    {
+      "id": "net-balances",
+      "from": "anomaly_guard",
+      "to": "netting_engine",
+      "label": "net balances",
+      "variant": "emphasis"
+    },
+    {
+      "id": "settle-transfers",
+      "from": "netting_engine",
+      "to": "upi_rail",
+      "label": "net transfers",
+      "variant": "default"
+    },
+    {
+      "id": "payment-commit",
+      "from": "upi_rail",
+      "to": "event_store",
+      "label": "payment record",
+      "variant": "emphasis"
+    },
+    {
+      "id": "audit-trail",
+      "from": "event_store",
+      "to": "reconciliation",
+      "label": "audit trail",
+      "variant": "default"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Deterministic Ledger & Netting",
+      "items": [
+        "Strict double-entry bookkeeping guarantees zero-sum balance at all times",
+        "Greedy graph compression reduces N-person debts to at most N-1 settlements"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Multimodal AI & Instant Rails",
+      "items": [
+        "Groq Vision OCR and Whisper Voice capture expenses hands-free with offline sync",
+        "Dynamic UPI QR generation and deep links execute instant peer-to-peer settlement"
+      ]
+    }
+  ]
+}
