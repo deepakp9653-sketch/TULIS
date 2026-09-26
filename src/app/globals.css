@@ -4,36 +4,121 @@
 @tailwind components;
 @tailwind utilities;
 
+html {
+  scroll-padding-top: 5.5rem;
+  scroll-behavior: smooth;
+}
+
 :root {
-  /* Light Mode Neumorphism Base & Surface Tokens */
-  --color-page: #EBF1F6;
-  --color-surface-base: #EBF1F6;
-  --color-surface-raised: #F6FAFE;
+  /* TULIS Brand Palette */
+  --tulis-cream: #EBF4DD;
+  --tulis-sage: #90AB8B;
+  --tulis-deep-sage: #5A7863;
+  --tulis-slate: #3B4953;
+
+  /* Neumorphic Shadow Tokens for #EBF4DD Base Surface */
+  --tulis-neu-raised: 8px 8px 20px rgba(59, 73, 83, 0.08), -8px -8px 20px rgba(255, 255, 255, 0.85);
+  --tulis-neu-raised-sm: 4px 4px 10px rgba(59, 73, 83, 0.07), -4px -4px 10px rgba(255, 255, 255, 0.85);
+  --tulis-neu-raised-lg: 14px 14px 32px rgba(59, 73, 83, 0.09), -14px -14px 32px rgba(255, 255, 255, 0.9);
+  --tulis-neu-inset: inset 3px 3px 8px rgba(59, 73, 83, 0.09), inset -3px -3px 8px rgba(255, 255, 255, 0.85);
+  --tulis-neu-inset-sm: inset 2px 2px 5px rgba(59, 73, 83, 0.08), inset -2px -2px 5px rgba(255, 255, 255, 0.85);
+  --tulis-neu-button: 4px 4px 12px rgba(59, 73, 83, 0.09), -4px -4px 12px rgba(255, 255, 255, 0.9);
+  --tulis-neu-button-pressed: inset 2px 2px 5px rgba(59, 73, 83, 0.15), inset -2px -2px 5px rgba(255, 255, 255, 0.9);
+
+  /* Light Mode Base & Surface Tokens */
+  --color-page: #EBF4DD;
+  --color-surface-base: #EBF4DD;
+  --color-surface-raised: #F4FAEB;
   --color-surface-overlay: #FFFFFF;
-  --color-surface-inset: #DEE6EF;
-  --color-surface-hairline: rgba(100, 116, 139, 0.16);
+  --color-surface-inset: #DEE7D0;
+  --color-surface-hairline: rgba(59, 73, 83, 0.12);
 
-  --color-text-primary: #0F172A;
-  --color-text-secondary: #334155;
-  --color-text-muted: #64748B;
+  --color-text-primary: #3B4953;
+  --color-text-secondary: #5A7863;
+  --color-text-muted: rgba(59, 73, 83, 0.65);
 
-  --color-brand-primary: #059669;
-  --color-brand-primary-dim: #047857;
+  --color-brand-primary: #5A7863;
+  --color-brand-primary-dim: #90AB8B;
 
-  --color-ledger-surplus: #059669;
-  --color-ledger-surplus-bg: rgba(5, 150, 105, 0.12);
-  --color-ledger-deficit: #E11D48;
-  --color-ledger-deficit-bg: rgba(225, 29, 72, 0.12);
+  --color-ledger-surplus: #5A7863;
+  --color-ledger-surplus-bg: rgba(90, 120, 99, 0.12);
+  --color-ledger-deficit: #C05646;
+  --color-ledger-deficit-bg: rgba(192, 86, 70, 0.12);
 
-  /* Neumorphic Dual Shadows (Light Theme) */
-  --shadow-dark: #C4CEDB;
-  --shadow-light: #FFFFFF;
+  --shadow-dark: rgba(59, 73, 83, 0.09);
+  --shadow-light: rgba(255, 255, 255, 0.9);
+}
 
-  --neu-flat: 6px 6px 14px #C4CEDB, -6px -6px 14px #FFFFFF;
-  --neu-flat-sm: 3px 3px 8px #C4CEDB, -3px -3px 8px #FFFFFF;
-  --neu-pressed: inset 3px 3px 6px #C4CEDB, inset -3px -3px 6px #FFFFFF;
-  --neu-pressed-sm: inset 2px 2px 4px #C4CEDB, inset -2px -2px 4px #FFFFFF;
-  --neu-glow: 0 0 15px rgba(16, 185, 129, 0.25);
+/* TULIS Neumorphic Utility Helpers */
+.neu-raised {
+  background-color: #EBF4DD;
+  box-shadow: 8px 8px 22px rgba(59, 73, 83, 0.08), -8px -8px 22px rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(59, 73, 83, 0.08);
+}
+
+.neu-raised-sm {
+  background-color: #EBF4DD;
+  box-shadow: 4px 4px 12px rgba(59, 73, 83, 0.07), -4px -4px 12px rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(59, 73, 83, 0.06);
+}
+
+.neu-inset {
+  background-color: #DEE7D0;
+  box-shadow: inset 3px 3px 8px rgba(59, 73, 83, 0.09), inset -3px -3px 8px rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(59, 73, 83, 0.06);
+}
+
+.neu-inset-sm {
+  background-color: #E2EBD3;
+  box-shadow: inset 2px 2px 5px rgba(59, 73, 83, 0.08), inset -2px -2px 5px rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(59, 73, 83, 0.05);
+}
+
+.neu-btn {
+  background-color: #EBF4DD;
+  box-shadow: 4px 4px 10px rgba(59, 73, 83, 0.09), -4px -4px 10px rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(59, 73, 83, 0.1);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.neu-btn:hover {
+  box-shadow: 6px 6px 14px rgba(59, 73, 83, 0.12), -6px -6px 14px rgba(255, 255, 255, 0.95);
+  transform: translateY(-1px);
+}
+
+.neu-btn:active {
+  box-shadow: inset 2px 2px 6px rgba(59, 73, 83, 0.14), inset -2px -2px 6px rgba(255, 255, 255, 0.9);
+  transform: translateY(1px);
+}
+
+.neu-btn-primary {
+  background-color: #5A7863 !important;
+  color: #EBF4DD !important;
+  box-shadow: 4px 4px 14px rgba(59, 73, 83, 0.2), -2px -2px 8px rgba(255, 255, 255, 0.4);
+  border: 1px solid rgba(59, 73, 83, 0.2);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.neu-btn-primary:hover {
+  background-color: #4C6753 !important;
+  box-shadow: 6px 6px 18px rgba(59, 73, 83, 0.25), -3px -3px 10px rgba(255, 255, 255, 0.5);
+  transform: translateY(-1px);
+}
+
+.neu-btn-primary:active {
+  box-shadow: inset 2px 2px 6px rgba(0, 0, 0, 0.25), inset -2px -2px 6px rgba(255, 255, 255, 0.2);
+  transform: translateY(1px);
+}
+
+/* Neo-Brutalist Personality Accents */
+.neo-accent-box {
+  border: 2px solid #3B4953;
+  box-shadow: 3px 3px 0px #3B4953;
+}
+
+.neo-accent-pill {
+  border: 1.5px solid #3B4953;
+  box-shadow: 2px 2px 0px #3B4953;
 }
 
 .dark {
@@ -72,7 +157,7 @@ body {
   background-color: var(--color-surface-base);
   color: var(--color-text-primary);
   font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  overflow-x: hidden;
+  overflow-x: clip;
   margin: 0;
   padding: 0;
   -webkit-font-smoothing: antialiased;
@@ -148,13 +233,13 @@ body {
   filter: brightness(1.03);
 }
 
-.neu-btn:active, .neu-btn-active {
+.dark .neu-btn:active, .dark .neu-btn-active {
   box-shadow: var(--neu-pressed-sm) !important;
   transform: translateY(0);
 }
 
-/* Primary Accent Neumorphic Button */
-.neu-btn-primary {
+/* Primary Accent Neumorphic Button in Dark Mode */
+.dark .neu-btn-primary {
   background: linear-gradient(135deg, #059669 0%, #10B981 100%);
   color: #FFFFFF !important;
   font-weight: 700;
@@ -163,30 +248,49 @@ body {
   transition: all 0.2s ease;
 }
 
-.neu-btn-primary:hover {
+.dark .neu-btn-primary:hover {
   filter: brightness(1.08);
   box-shadow: 6px 6px 16px rgba(16, 185, 129, 0.45), -2px -2px 10px rgba(255, 255, 255, 0.3);
 }
 
-.neu-btn-primary:active {
+.dark .neu-btn-primary:active {
   box-shadow: inset 3px 3px 6px rgba(4, 120, 87, 0.6), inset -3px -3px 6px rgba(52, 211, 153, 0.4) !important;
 }
 
 /* Custom glassmorphism utility for elevated floating surfaces */
 .glass-panel {
-  background-color: var(--color-surface-overlay);
-  box-shadow: var(--neu-flat-sm);
-  border: 1px solid var(--color-surface-hairline);
+  background-color: rgba(235, 244, 221, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 8px 32px rgba(59, 73, 83, 0.08);
 }
 
 .glass-badge {
-  background-color: var(--color-surface-inset);
-  box-shadow: var(--neu-pressed-sm);
-  border: 1px solid var(--color-surface-hairline);
+  background-color: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 2px 8px rgba(59, 73, 83, 0.04);
 }
 
-/* Raised surface utility (for header cards, modals) */
-.neu-raised {
+/* Double-Bezel (Doppelrand) Architecture */
+.doppelrand-shell {
+  background: rgba(59, 73, 83, 0.04);
+  border: 1px solid rgba(59, 73, 83, 0.12);
+  border-radius: 1.75rem;
+  padding: 0.375rem;
+  box-shadow: 8px 8px 24px rgba(59, 73, 83, 0.06), -8px -8px 24px rgba(255, 255, 255, 0.9);
+}
+
+.doppelrand-core {
+  background: #EBF4DD;
+  border-radius: calc(1.75rem - 0.375rem);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.8), 0 1px 2px rgba(59, 73, 83, 0.04);
+  border: 1px solid rgba(59, 73, 83, 0.08);
+}
+
+.dark .neu-raised {
   box-shadow: var(--neu-flat-sm);
 }
 
@@ -318,5 +422,117 @@ body {
     justify-content: space-between;
   }
 }
+
+/* ==========================================================================
+   TULIS Cinematic Hero Keyframes & Micro-Animations
+   ========================================================================== */
+
+/* Campfire Smoke Rising & Drifting (Anchored base, natural rise) */
+@keyframes smokeRise {
+  0% {
+    transform: translate3d(0, 0, 0) scale(0.96);
+    opacity: 0.75;
+  }
+  50% {
+    transform: translate3d(3px, -12px, 0) scale(1.03);
+    opacity: 0.85;
+  }
+  100% {
+    transform: translate3d(-2px, -24px, 0) scale(1.08);
+    opacity: 0.48;
+  }
+}
+
+.animate-smoke-rise {
+  transform-origin: bottom center;
+  animation: smokeRise 5s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate;
+}
+
+/* Airplane Gentle Hover & Float */
+@keyframes airplaneHover {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate3d(4px, -6px, 0) rotate(-0.5deg);
+  }
+  100% {
+    transform: translate3d(-3px, 4px, 0) rotate(0.4deg);
+  }
+}
+
+.animate-airplane-hover {
+  animation: airplaneHover 7s ease-in-out infinite alternate;
+}
+
+/* Sun Atmospheric Breathing */
+@keyframes sunDrift {
+  0% {
+    transform: scale(1) translate3d(0, 0, 0);
+  }
+  50% {
+    transform: scale(1.015) translate3d(2px, -3px, 0);
+  }
+  100% {
+    transform: scale(0.995) translate3d(-2px, 2px, 0);
+  }
+}
+
+.animate-sun-drift {
+  animation: sunDrift 12s ease-in-out infinite alternate;
+}
+
+/* Cloud Slow Drifts */
+@keyframes cloudSlow {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-18px, -3px, 0);
+  }
+}
+
+@keyframes cloudMid {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(24px, -4px, 0);
+  }
+}
+
+@keyframes cloudFast {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-32px, 3px, 0);
+  }
+}
+
+.animate-cloud-drift-slow {
+  animation: cloudSlow 16s ease-in-out infinite alternate;
+}
+
+.animate-cloud-drift-mid {
+  animation: cloudMid 14s ease-in-out infinite alternate;
+}
+
+.animate-cloud-drift-fast {
+  animation: cloudFast 12s ease-in-out infinite alternate;
+}
+
+/* Respect prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  .animate-smoke-rise,
+  .animate-airplane-hover,
+  .animate-sun-drift,
+  .animate-cloud-drift-slow,
+  .animate-cloud-drift-mid,
+  .animate-cloud-drift-fast {
+    animation: none !important;
+  }
+}
+
 
 
