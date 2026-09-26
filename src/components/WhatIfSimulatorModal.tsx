@@ -125,11 +125,11 @@ export const WhatIfSimulatorModal: React.FC<WhatIfSimulatorModalProps> = ({
                   What-If Scenario Simulator (Dry-Run Engine)
                 </h3>
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-brand-gold/20 text-brand-gold border border-brand-gold/30">
-                  Speculative Fold
+                  Preview
                 </span>
               </div>
               <p className="text-xs text-ink-secondary mt-0.5">
-                Preview exact ripple effects on participant balances before committing state changes to the immutable ledger.
+                Preview how changes will affect participant balances before applying them.
               </p>
             </div>
           </div>
@@ -313,7 +313,7 @@ export const WhatIfSimulatorModal: React.FC<WhatIfSimulatorModalProps> = ({
             </div>
             <div className="flex items-center gap-3">
               <span className="font-mono text-emerald-400">
-                Zero-Sum Discrepancy Δ = ₹{dryRunResult.projectedAudit.discrepancy.toFixed(2)}
+                Discrepancy Δ = ₹{dryRunResult.projectedAudit.discrepancy.toFixed(2)}
               </span>
               <span className="font-numeric font-bold text-brand-gold">
                 {dryRunResult.newSimplifiedDebts.length} Simplified Transactions

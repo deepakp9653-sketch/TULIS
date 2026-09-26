@@ -34,7 +34,7 @@ export const ReconciliationAuditCard: React.FC<ReconciliationAuditCardProps> = (
           <div>
             <div className="flex items-center gap-2">
               <h4 className="font-semibold text-sm sm:text-base text-ink-primary">
-                Zero-Sum Reconciliation Invariant
+                Reconciliation Status
               </h4>
               <span
                 className={`px-2 py-0.5 text-[10px] font-mono font-bold rounded flex items-center gap-1 uppercase tracking-wider ${
@@ -45,7 +45,7 @@ export const ReconciliationAuditCard: React.FC<ReconciliationAuditCardProps> = (
               >
                 {audit.isReconciled ? (
                   <>
-                    <CheckCircle2 className="w-3 h-3" /> Net 0.00 Verified
+                    <CheckCircle2 className="w-3 h-3" /> Balanced
                   </>
                 ) : (
                   <>
@@ -55,7 +55,7 @@ export const ReconciliationAuditCard: React.FC<ReconciliationAuditCardProps> = (
               </span>
             </div>
             <p className="text-xs text-ink-muted mt-0.5 font-mono">
-              Net Incurred Group Spend (₹{audit.netIncurred.toLocaleString('en-IN')}) = Net Participant Debt Allocations
+              Net Incurred: ₹{audit.netIncurred.toLocaleString('en-IN')}
             </p>
           </div>
         </div>

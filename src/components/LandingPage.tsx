@@ -281,9 +281,9 @@ const LedgerProofStrip: React.FC = () => {
     <section className="py-10 border-y border-surface-hairline bg-surface-base overflow-hidden">
       <div className="max-w-7xl mx-auto px-6 mb-5">
         <div className="flex items-center gap-3">
-          <span className="text-[10px] uppercase font-mono tracking-widest text-ink-muted">Immutable Audit Log</span>
+          <span className="text-[10px] uppercase font-mono tracking-widest text-ink-muted">Audit Log</span>
           <div className="flex-1 h-px bg-surface-hairline" />
-          <span className="text-[10px] font-mono text-brand-emerald">Append-Only • Deterministic</span>
+          <span className="text-[10px] font-mono text-brand-emerald">Live • Verified</span>
         </div>
       </div>
       <div className="flex gap-4 px-6 overflow-x-auto pb-2 scrollbar-hide">
@@ -331,7 +331,7 @@ const HowItWorksSection: React.FC = () => {
     {
       num: '03',
       title: 'Auto-Compress Debts',
-      desc: 'The greedy graph-netting engine collapses your squad\'s tangled IOUs into the fewest possible UPI transfers.',
+      desc: 'Smart debt simplification collapses your squad\'s tangled IOUs into the fewest possible UPI transfers.',
       icon: Zap,
     },
     {
@@ -523,7 +523,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </h1>
 
               <p className="text-base sm:text-lg text-ink-secondary leading-relaxed max-w-2xl font-normal">
-                Connect your itinerary with an immutable financial ledger. Invite squad members with a 6-character code (e.g. <code className="text-brand-emerald font-mono font-semibold bg-surface-inset border border-surface-hairline px-2 py-0.5 rounded">GOA2026</code>), upload bill receipts, and compress group debts via greedy zero-sum graph netting.
+                Connect your itinerary with a shared financial ledger. Invite squad members with a 6-character code (e.g. <code className="text-brand-emerald font-mono font-semibold bg-surface-inset border border-surface-hairline px-2 py-0.5 rounded">GOA2026</code>), upload bill receipts, and let smart debt simplification handle the rest.
               </p>
 
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-2">
@@ -581,7 +581,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <div className="grid grid-cols-3 gap-6 pt-6 border-t border-surface-hairline max-w-lg">
                 <div>
                   <span className="font-numeric font-bold text-2xl text-ink-primary block">Net 0.00</span>
-                  <span className="text-xs text-ink-muted font-mono">Zero-Sum Audit</span>
+                  <span className="text-xs text-ink-muted font-mono">Balanced Audit</span>
                 </div>
                 <div>
                   <span className="font-numeric font-bold text-2xl text-brand-emerald block">Minimal Paths</span>
@@ -611,10 +611,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           <div className="text-center space-y-2">
             <span className="text-xs uppercase font-mono tracking-widest text-brand-emerald">Algorithm Sandbox</span>
             <h2 className="font-sans font-bold text-2xl sm:text-3xl text-ink-primary tracking-tight">
-              Minimal Zero-Sum Debt Simplification
+              Smart Debt Simplification
             </h2>
             <p className="text-xs sm:text-sm text-ink-muted max-w-xl mx-auto">
-              Instead of everyone exchanging small amounts back and forth, greedy graph netting calculates the exact minimal UPI transfers needed.
+              Instead of everyone exchanging small amounts back and forth, smart debt simplification calculates the exact minimal UPI transfers needed.
             </p>
           </div>
 
@@ -632,7 +632,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   className="px-4 py-2 rounded-xl cta-gradient-btn text-white border border-brand-emerald/30 text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer shadow-mint"
                 >
                   <Zap className="w-3.5 h-3.5 text-white" />
-                  <span>{sandboxNet ? 'Show Raw Pairwise Debts' : 'Execute Greedy Netting'}</span>
+                  <span>{sandboxNet ? 'Show All Debts' : 'Simplify Debts'}</span>
                 </button>
 
                 {/* Settle All Instant CTA */}
@@ -714,7 +714,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
           <FinancialBarChart
             title="Squad Member Spend Allocation"
-            subtitle="Total amount fronted per participant prior to zero-sum netting"
+            subtitle="Total amount fronted per participant before simplification"
             items={[
               { label: 'Priya', value: 18500, formattedValue: '₹18,500' },
               { label: 'Rohan', value: 16200, formattedValue: '₹16,200' },
@@ -749,8 +749,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             },
             {
               icon: ShieldCheck,
-              title: 'Event-Sourced Audit Log',
-              desc: 'Immutable append-only event stream ensuring 100% deterministic math.',
+              title: 'Complete Audit Log',
+              desc: 'Tamper-proof event stream ensuring accurate and verifiable calculations.',
             },
             {
               icon: Wallet,
@@ -819,7 +819,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </div>
               </div>
               <p className="text-xs text-ink-muted leading-relaxed max-w-xs">
-                Immutable double-entry group ledger engine for squad trips. Split expenses, compress debts, settle instantly via UPI.
+                Group ledger engine for squad trips. Split expenses, simplify debts, settle instantly via UPI.
               </p>
             </div>
 
@@ -859,7 +859,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             {/* Built With Column */}
             <div className="space-y-3">
               <span className="text-[10px] uppercase font-mono tracking-widest text-brand-emerald block">Built With</span>
-              {['Zero-Sum Graph Netting', 'Event-Sourced Ledger', 'UPI QR Settlement', 'Append-Only Audit Log'].map((item, idx) => (
+              {['Smart Debt Simplification', 'Complete Audit Trail', 'UPI QR Settlement', 'Real-Time Ledger'].map((item, idx) => (
                 <span key={idx} className="block text-xs text-ink-muted">{item}</span>
               ))}
             </div>

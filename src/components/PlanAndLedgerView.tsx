@@ -116,11 +116,11 @@ export const PlanAndLedgerView: React.FC<PlanAndLedgerViewProps> = ({
               Plan & Live Ledger
             </h2>
             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-              Synchronized Hub
+              Live
             </span>
           </div>
           <p className="text-xs text-ink-secondary">
-            Consolidated timeline of bookings, daily activities, live bill tracking & verified receipts (₹ INR).
+            Timeline of bookings, daily activities, live bill tracking & receipts. (₹ INR).
           </p>
         </div>
 

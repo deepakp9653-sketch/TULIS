@@ -240,7 +240,7 @@ export const TripChatPanel: React.FC<TripChatPanelProps> = ({
               <span className="w-2 h-2 rounded-full bg-brand-emerald animate-pulse" />
             </div>
             <span className="text-[10px] text-ink-muted font-mono block">
-              Synchronized with Neon PostgreSQL
+              Live Sync Active
             </span>
           </div>
         </div>

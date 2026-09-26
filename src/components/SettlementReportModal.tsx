@@ -123,7 +123,7 @@ export const SettlementReportModal: React.FC<SettlementReportModalProps> = ({
                 </span>
               </div>
               <p className="text-xs text-ink-secondary mt-0.5">
-                Clean, shareable summary of final balances, zero-sum proof, and UPI settlement paths.
+                Clean, shareable summary of final balances, verification, and UPI settlement paths.
               </p>
             </div>
           </div>
@@ -259,7 +259,7 @@ export const SettlementReportModal: React.FC<SettlementReportModalProps> = ({
           {/* Minimal Settlement Paths */}
           <div className="space-y-2">
             <h4 className="text-xs font-bold text-ink-secondary uppercase tracking-wider">
-              Minimal Debt Settlement Matrix (Greedy Netting)
+              Minimal Debt Settlement Matrix (Optimised)
             </h4>
             {simplifiedDebts.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

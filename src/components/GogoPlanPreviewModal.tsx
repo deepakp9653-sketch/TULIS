@@ -166,7 +166,7 @@ export const GogoPlanPreviewModal: React.FC<GogoPlanPreviewModalProps> = ({
           setSuccessTrip(null);
         }, 1400);
       } else {
-        alert(data.error || 'Failed to save trip to Neon database.');
+        alert(data.error || 'Failed to save trip.');
       }
     } catch (err) {
       console.error('Failed to convert plan to trip:', err);
@@ -420,7 +420,7 @@ export const GogoPlanPreviewModal: React.FC<GogoPlanPreviewModalProps> = ({
             {isSaving ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Writing to Neon PostgreSQL...</span>
+                <span>Saving Trip...</span>
               </>
             ) : successTrip ? (
               <>

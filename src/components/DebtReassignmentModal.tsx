@@ -181,7 +181,7 @@ export const DebtReassignmentModal: React.FC<DebtReassignmentModalProps> = ({
           <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-ink-secondary flex items-center gap-3">
             <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
             <p>
-              Once confirmed, <strong className="text-ink-primary">{surrogate?.name || 'Surrogate'}</strong> will become liable to pay <strong className="text-ink-primary">{creditor?.name}</strong> for ₹{amount.toLocaleString('en-IN')}, relieving <strong className="text-ink-primary">{originalDebtor?.name}</strong> of this debt on the immutable ledger.
+              Once confirmed, <strong className="text-ink-primary">{surrogate?.name || 'Surrogate'}</strong> will become liable to pay <strong className="text-ink-primary">{creditor?.name}</strong> for ₹{amount.toLocaleString('en-IN')}, relieving <strong className="text-ink-primary">{originalDebtor?.name}</strong> of this debt.
             </p>
           </div>
 

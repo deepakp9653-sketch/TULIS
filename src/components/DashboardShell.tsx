@@ -409,11 +409,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
                 </span>
               </div>
 
-              {/* Single Verified Audit Ticker */}
-              <div className="hidden md:inline-flex items-center gap-1 text-[11px] font-mono text-brand-emerald bg-brand-emerald/10 px-2.5 py-0.5 rounded-full border border-brand-emerald/20">
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span>Net 0.00 Verified</span>
-              </div>
+
             </div>
 
             {/* Right Telemetry: Single Balance, Single Theme Toggle, Single Log Out */}

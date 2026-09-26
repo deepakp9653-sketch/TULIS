@@ -48,7 +48,7 @@ export const ExpensesSection: React.FC<ExpensesSectionProps> = ({
             <Receipt className="w-5 h-5 text-emerald-500" /> Expense Log & Bill Proofs
           </h2>
           <p className="text-xs text-ink-secondary mt-0.5">
-            Immutable log of all trip costs, dynamic allocations, verified receipt proofs & vendor refunds (₹ INR).
+            Complete log of all trip costs, allocations, receipts & vendor refunds.
           </p>
         </div>
         <button

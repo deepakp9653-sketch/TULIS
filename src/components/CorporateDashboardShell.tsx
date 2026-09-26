@@ -480,7 +480,7 @@ export const CorporateDashboardShell: React.FC<CorporateDashboardShellProps> = (
                   </p>
                 </div>
                 <span className="text-[10px] font-mono px-2 py-1 rounded-lg bg-emerald-950 text-emerald-400 border border-emerald-800/40">
-                  Enforced in Neon DB
+                  Policy Active
                 </span>
               </div>
 

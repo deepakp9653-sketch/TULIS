@@ -351,8 +351,8 @@ export const ActivityLogSection: React.FC<ActivityLogSectionProps> = ({ events, 
             </tbody>
           </table>
           <div class="footer">
-            <span>Provably Reconciled · Append-Only Event Stream · Tulis Multi-Vendor Travel Ledger</span>
-            <span>Integrity: Zero-Sum Verified</span>
+            <span>Reconciled · Tulis Travel Ledger</span>
+            <span>Integrity: Verified</span>
           </div>
           <script>
             window.onload = function() {
@@ -458,10 +458,10 @@ export const ActivityLogSection: React.FC<ActivityLogSectionProps> = ({ events, 
       <div className="page-header-split bg-surface-raised p-5 rounded-3xl border border-surface-hairline neu-raised">
         <div>
           <h2 className="text-xl font-serif-display font-bold text-ink-primary flex items-center gap-2">
-            <Activity className="w-5 h-5 text-emerald-500" /> Event-Sourced Activity & Audit Log
+            <Activity className="w-5 h-5 text-emerald-500" /> Activity & Audit Log
           </h2>
           <p className="text-xs text-ink-secondary mt-0.5">
-            Immutable append-only ledger event stream preserving complete recalculation lineage & refunds (₹ INR).
+            Complete ledger event stream preserving all transaction history & refunds (₹ INR).
           </p>
         </div>
 
@@ -686,7 +686,7 @@ export const ActivityLogSection: React.FC<ActivityLogSectionProps> = ({ events, 
                       Official Ledger Audit Trail Document
                     </h3>
                     <p className="text-xs text-ink-secondary">
-                      Append-only cryptographic lineage of all group transactions &amp; revisions
+                      Complete record of all group transactions & revisions
                     </p>
                   </div>
                 </div>
@@ -736,7 +736,7 @@ export const ActivityLogSection: React.FC<ActivityLogSectionProps> = ({ events, 
 
                   <div className="sm:text-right">
                     <span className="inline-block px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
-                      Deterministic Zero-Sum Verified
+                      Verified
                     </span>
                     <div className="text-[11px] text-ink-muted font-mono mt-1">
                       Exported: {new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
@@ -798,7 +798,7 @@ export const ActivityLogSection: React.FC<ActivityLogSectionProps> = ({ events, 
                 </div>
 
                 <div className="pt-3 border-t border-surface-hairline flex items-center justify-between text-[11px] text-ink-muted">
-                  <span>Provably Reconciled · Append-Only Event Stream</span>
+                  <span>Reconciled · Event Stream</span>
                   <span className="font-mono">Total Events: {(events || []).length}</span>
                 </div>
               </div>

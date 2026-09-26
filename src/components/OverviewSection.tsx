@@ -299,8 +299,6 @@ export const OverviewSection: React.FC<OverviewSectionProps> = ({
 
             <div className="flex items-center gap-2 text-[11px] font-mono text-ink-muted font-medium">
               <span>Auto-Split: Equal / Custom</span>
-              <span>•</span>
-              <span className="text-emerald-500 font-bold">Zero-Sum Live</span>
             </div>
           </div>
 
@@ -560,7 +558,7 @@ export const OverviewSection: React.FC<OverviewSectionProps> = ({
               <span className="text-xs text-ink-secondary">Direct UPI Transfers</span>
             </div>
             <p className="text-[11px] text-ink-muted mt-1.5 line-clamp-1">
-              Greedy graph netting eliminates pairwise loops.
+              Optimised to minimise the number of transfers needed.
             </p>
           </div>
 
@@ -683,7 +681,7 @@ export const OverviewSection: React.FC<OverviewSectionProps> = ({
                   </h3>
                 </div>
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400">
-                  Zero-Sum
+                  Balanced
                 </span>
               </div>
 

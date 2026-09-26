@@ -94,7 +94,7 @@ export const ExplainBalanceModal: React.FC<ExplainBalanceModalProps> = ({
                 </span>
               </div>
               <p className="text-xs text-ink-secondary mt-0.5">
-                Deterministic line-item mathematical proof derived strictly from the append-only event ledger.
+                Detailed breakdown of how this balance was calculated from all ledger entries.
               </p>
             </div>
           </div>
