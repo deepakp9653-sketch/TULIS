@@ -461,15 +461,17 @@ export default function Home() {
     setTimeout(() => setToastMessage(null), 4000);
   };
 
-  // Current active trip entities
-  const trip = trips.find((t) => t.id === activeTripId) || trips[0];
-  const participants = participantsMap[trip.id] || [];
-  const bookings = bookingsMap[trip.id] || [];
-  const expenses = expensesMap[trip.id] || [];
-  const payments = paymentsMap[trip.id] || [];
-  const events = eventsMap[trip.id] || [];
-  const vendors = vendorsMap[trip.id] || [];
-  const refunds = refundsMap[trip.id] || [];
+  // Current active trip entities with robust null-safety fallback
+  const effectiveTrips = Array.isArray(trips) && trips.length > 0 ? trips : [INITIAL_TRIP];
+  const trip = effectiveTrips.find((t) => t.id === activeTripId) || effectiveTrips[0] || INITIAL_TRIP;
+  const currentTripId = trip.id;
+  const participants = participantsMap[currentTripId] || (currentTripId === INITIAL_TRIP.id ? INITIAL_PARTICIPANTS : []);
+  const bookings = bookingsMap[currentTripId] || [];
+  const expenses = expensesMap[currentTripId] || [];
+  const payments = paymentsMap[currentTripId] || [];
+  const events = eventsMap[currentTripId] || [];
+  const vendors = vendorsMap[currentTripId] || [];
+  const refunds = refundsMap[currentTripId] || [];
 
   const activeParticipants = participants.filter((p) => p.status === 'active');
   const netBalances = computeNetBalances(participants, expenses, payments, refunds, bookings);
@@ -641,8 +643,13 @@ export default function Home() {
       const data = await res.json();
       if (data.success && Array.isArray(data.trips)) {
         const userTrips: Trip[] = data.trips;
-        setTrips(userTrips);
-        setUserAssociatedTrips(userTrips);
+        if (userTrips.length > 0) {
+          setTrips(userTrips);
+          setUserAssociatedTrips(userTrips);
+        } else {
+          setUserAssociatedTrips([]);
+          setTrips((prev) => (prev.length > 0 ? prev : [INITIAL_TRIP]));
+        }
 
         if (autoEnterDashboard) {
           if (userTrips.length > 0) {
@@ -654,8 +661,9 @@ export default function Home() {
             await loadTripById(targetTrip.id, userEmail);
             setViewMode('app');
           } else {
-            setActiveTripId('');
+            setActiveTripId(INITIAL_TRIP.id);
             setViewMode('app');
+            setIsTripGatewayOpen(true);
           }
         }
         return userTrips;
@@ -2074,7 +2082,7 @@ export default function Home() {
             setViewMode('landing');
             triggerToast('Signed out of corporate session.');
           }}
-          activeTrips={trips}
+          activeTrips={effectiveTrips}
         />
       </div>
     );
@@ -2374,7 +2382,7 @@ export default function Home() {
       <TripSwitcherModal
         isOpen={isTripSwitcherOpen}
         onClose={() => setIsTripSwitcherOpen(false)}
-        trips={trips}
+        trips={effectiveTrips}
         activeTripId={activeTripId}
         participantsMap={participantsMap}
         onSelectTrip={(id) => {
