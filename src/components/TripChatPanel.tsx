@@ -16,9 +16,12 @@ import {
   CheckCircle2,
   Bot,
   Zap,
+  Megaphone,
+  Check,
 } from 'lucide-react';
 import { ChatSummaryCard } from './ChatSummaryCard';
 import { UserAvatar } from './UserAvatar';
+import { Trip, Participant, SimplifiedDebt, Booking } from '@/lib/types';
 
 interface Message {
   id: string;
@@ -35,6 +38,10 @@ interface TripChatPanelProps {
   currentUserName?: string;
   onClose?: () => void;
   isFloating?: boolean;
+  trip?: Trip;
+  participants?: Participant[];
+  simplifiedDebts?: SimplifiedDebt[];
+  bookings?: Booking[];
 }
 
 export const TripChatPanel: React.FC<TripChatPanelProps> = ({
@@ -43,6 +50,10 @@ export const TripChatPanel: React.FC<TripChatPanelProps> = ({
   currentUserName = 'Traveler',
   onClose,
   isFloating = false,
+  trip,
+  participants = [],
+  simplifiedDebts = [],
+  bookings = [],
 }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
@@ -52,6 +63,13 @@ export const TripChatPanel: React.FC<TripChatPanelProps> = ({
   const [actionItems, setActionItems] = useState<string[]>([]);
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
+  const [isDraftingAnnouncement, setIsDraftingAnnouncement] = useState(false);
+  const [draftAnnouncement, setDraftAnnouncement] = useState<{
+    title: string;
+    announcement: string;
+    highlights: string[];
+    actionItems: string[];
+  } | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const cacheKey = `tulis_chat_${tripId}`;
@@ -127,7 +145,7 @@ export const TripChatPanel: React.FC<TripChatPanelProps> = ({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, showSummary]);
 
-  const handleSendMessage = async (textOverride?: string) => {
+  const handleSendMessage = async (textOverride?: string, messageType: string = 'user') => {
     const textToSend = textOverride || inputText;
     if (!textToSend.trim() || isSending) return;
 
@@ -140,7 +158,7 @@ export const TripChatPanel: React.FC<TripChatPanelProps> = ({
       sender_id: currentUserId,
       sender_name: currentUserName,
       message_text: finalMsg,
-      message_type: 'user',
+      message_type: messageType,
       created_at: new Date().toISOString(),
     };
 
@@ -167,6 +185,7 @@ export const TripChatPanel: React.FC<TripChatPanelProps> = ({
           text: finalMsg,
           senderName: currentUserName,
           senderId: currentUserId,
+          messageType,
         }),
       });
 
@@ -176,6 +195,10 @@ export const TripChatPanel: React.FC<TripChatPanelProps> = ({
         setMessages((prev) => {
           const filtered = prev.filter((m) => m.id !== tempId);
           const updated = [...filtered, data.message];
+          // If server provided a grounded Concierge response, append it too
+          if (data.conciergeMessage) {
+            updated.push(data.conciergeMessage);
+          }
           if (typeof window !== 'undefined') {
             try {
               localStorage.setItem(cacheKey, JSON.stringify(updated));
@@ -216,6 +239,44 @@ export const TripChatPanel: React.FC<TripChatPanelProps> = ({
     }
   };
 
+  const handleDraftAnnouncement = async () => {
+    setIsDraftingAnnouncement(true);
+    try {
+      const res = await fetch('/api/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'draft-announcement',
+          tripTitle: trip?.title || 'Our Squad Trip',
+          destination: trip?.destination || 'Destination',
+          participants,
+          simplifiedDebts,
+          pendingBookings: bookings.filter((b) => b.status === 'pending'),
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setDraftAnnouncement({
+          title: data.title,
+          announcement: data.announcement,
+          highlights: data.highlights || [],
+          actionItems: data.actionItems || [],
+        });
+      }
+    } catch (e) {
+      console.error('Draft announcement error:', e);
+    } finally {
+      setIsDraftingAnnouncement(false);
+    }
+  };
+
+  const handlePostAnnouncement = async () => {
+    if (!draftAnnouncement) return;
+    const text = `📢 **${draftAnnouncement.title}**\n\n${draftAnnouncement.announcement}\n\nKey Highlights:\n${draftAnnouncement.highlights.map((h) => `• ${h}`).join('\n')}\n\nAction Items:\n${draftAnnouncement.actionItems.map((a) => `• ${a}`).join('\n')}`;
+    setDraftAnnouncement(null);
+    await handleSendMessage(text, 'announcement');
+  };
+
   const QUICK_PROMPTS = [
     'Uploaded the dinner receipt 🧾',
     'Cab booking confirmed 🚕',
@@ -240,12 +301,27 @@ export const TripChatPanel: React.FC<TripChatPanelProps> = ({
               <span className="w-2 h-2 rounded-full bg-brand-emerald animate-pulse" />
             </div>
             <span className="text-[10px] text-ink-muted font-mono block">
-              Live Sync Active
+              Real-time synced
             </span>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleDraftAnnouncement}
+            disabled={isDraftingAnnouncement}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-[11px] font-semibold text-amber-400 transition-all shadow-subtle cursor-pointer"
+            title="Draft an authentic announcement using live trip data"
+          >
+            {isDraftingAnnouncement ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />
+            ) : (
+              <Megaphone className="w-3.5 h-3.5 text-amber-400" />
+            )}
+            <span>Announcement</span>
+          </button>
+
           <button
             type="button"
             onClick={handleGenerateSummary}
@@ -270,6 +346,54 @@ export const TripChatPanel: React.FC<TripChatPanelProps> = ({
           )}
         </div>
       </div>
+
+      {/* Draft Announcement Preview Card */}
+      {draftAnnouncement && (
+        <div className="p-4 bg-gradient-to-br from-[#1c261b] to-[#121a11] border-b border-amber-500/40 text-stone-100 shrink-0 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-amber-400 font-bold text-xs uppercase tracking-wider">
+              <Megaphone className="w-4 h-4" />
+              <span>Draft Announcement Preview (F2.4)</span>
+            </div>
+            <button
+              onClick={() => setDraftAnnouncement(null)}
+              className="text-stone-400 hover:text-white p-1 rounded-lg"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <div className="p-3 rounded-xl bg-black/40 border border-stone-800 text-xs space-y-2">
+            <h4 className="font-bold text-amber-300 text-sm">{draftAnnouncement.title}</h4>
+            <p className="text-stone-200 leading-relaxed">{draftAnnouncement.announcement}</p>
+            {draftAnnouncement.highlights.length > 0 && (
+              <div className="space-y-1 pt-1 border-t border-stone-800 text-[11px] text-stone-300">
+                <span className="font-semibold text-emerald-400">Highlights:</span>
+                {draftAnnouncement.highlights.map((h, i) => (
+                  <div key={i} className="flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                    <span>{h}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="flex items-center justify-end gap-2">
+            <button
+              onClick={() => setDraftAnnouncement(null)}
+              className="px-3 py-1.5 rounded-xl bg-stone-800 text-stone-300 hover:text-white text-xs font-semibold"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handlePostAnnouncement}
+              className="px-4 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs flex items-center gap-1.5 shadow-md cursor-pointer"
+            >
+              <Send className="w-3.5 h-3.5" />
+              <span>Post to Squad</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 2. Optional AI Summary Card */}
       {showSummary && summary && (
@@ -299,6 +423,42 @@ export const TripChatPanel: React.FC<TripChatPanelProps> = ({
           messages.map((msg) => {
             const isMe = msg.sender_id === currentUserId;
             const isSystem = msg.sender_id === 'system';
+
+            if (msg.message_type === 'announcement') {
+              return (
+                <div key={msg.id} className="my-3 p-4 rounded-2xl bg-gradient-to-br from-[#1b2a1a] via-[#141f13] to-[#0c140c] border border-amber-500/50 shadow-lg text-stone-100 space-y-2">
+                  <div className="flex items-center justify-between border-b border-amber-500/20 pb-2">
+                    <div className="flex items-center gap-2 text-amber-400 font-bold text-xs uppercase tracking-wider">
+                      <Megaphone className="w-4 h-4" />
+                      <span>Official Squad Announcement</span>
+                    </div>
+                    <span className="text-[10px] text-stone-400 font-mono">
+                      {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  <div className="text-xs text-stone-200 whitespace-pre-line leading-relaxed">
+                    {msg.message_text}
+                  </div>
+                </div>
+              );
+            }
+
+            if (msg.message_type === 'concierge') {
+              return (
+                <div key={msg.id} className="my-2.5 p-3.5 rounded-2xl bg-emerald-950/40 border border-emerald-500/30 text-stone-100 shadow-sm space-y-1.5">
+                  <div className="flex items-center justify-between text-emerald-400 font-bold text-[11px]">
+                    <div className="flex items-center gap-1.5">
+                      <Bot className="w-4 h-4 text-emerald-400" />
+                      <span>Tulis AI Concierge</span>
+                    </div>
+                    <span className="text-[9px] uppercase font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      Live Grounded
+                    </span>
+                  </div>
+                  <p className="text-xs text-stone-200 leading-relaxed">{msg.message_text}</p>
+                </div>
+              );
+            }
 
             if (isSystem) {
               return (

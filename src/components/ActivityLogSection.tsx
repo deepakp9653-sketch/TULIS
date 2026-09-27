@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { LedgerEvent, Trip } from '@/lib/types';
+import { LedgerEvent, Trip, Participant, ParticipantNetBalance, Expense } from '@/lib/types';
 import {
   Activity,
   ShieldCheck,
@@ -25,21 +25,36 @@ import {
   FileText,
   X,
   Copy,
+  Scale,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { FairnessReportModal } from './FairnessReportModal';
 
 interface ActivityLogSectionProps {
   events: LedgerEvent[];
   onDeleteEvent?: (eventId: string) => void;
   trip?: Trip;
+  participants?: Participant[];
+  netBalances?: ParticipantNetBalance[];
+  expenses?: Expense[];
+  attendanceMatrix?: Record<string, Record<string, boolean>>;
 }
 
-export const ActivityLogSection: React.FC<ActivityLogSectionProps> = ({ events, onDeleteEvent, trip }) => {
+export const ActivityLogSection: React.FC<ActivityLogSectionProps> = ({
+  events,
+  onDeleteEvent,
+  trip,
+  participants = [],
+  netBalances = [],
+  expenses = [],
+  attendanceMatrix = {},
+}) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
   const [expandedPayloadId, setExpandedPayloadId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [isFairnessModalOpen, setIsFairnessModalOpen] = useState(false);
 
   const handleDownloadCSV = () => {
     const tripName = (trip?.title || 'Trip').replace(/[^a-zA-Z0-9_-]/g, '_');
@@ -351,8 +366,8 @@ export const ActivityLogSection: React.FC<ActivityLogSectionProps> = ({ events, 
             </tbody>
           </table>
           <div class="footer">
-            <span>Reconciled · Tulis Travel Ledger</span>
-            <span>Integrity: Verified</span>
+            <span>Provably Reconciled · Append-Only Event Stream · Tulis Multi-Vendor Travel Ledger</span>
+            <span>Integrity: Zero-Sum Verified</span>
           </div>
           <script>
             window.onload = function() {
@@ -458,10 +473,10 @@ export const ActivityLogSection: React.FC<ActivityLogSectionProps> = ({ events, 
       <div className="page-header-split bg-surface-raised p-5 rounded-3xl border border-surface-hairline neu-raised">
         <div>
           <h2 className="text-xl font-serif-display font-bold text-ink-primary flex items-center gap-2">
-            <Activity className="w-5 h-5 text-emerald-500" /> Activity & Audit Log
+            <Activity className="w-5 h-5 text-emerald-500" /> Event-Sourced Activity & Audit Log
           </h2>
           <p className="text-xs text-ink-secondary mt-0.5">
-            Complete ledger event stream preserving all transaction history & refunds (₹ INR).
+            Immutable append-only ledger event stream preserving complete recalculation lineage & refunds (₹ INR).
           </p>
         </div>
 
@@ -484,6 +499,16 @@ export const ActivityLogSection: React.FC<ActivityLogSectionProps> = ({ events, 
           >
             <Download className="w-3.5 h-3.5 text-emerald-500" />
             <span>Download PDF</span>
+          </button>
+
+          {/* F4.3 Fairness Audit Report */}
+          <button
+            onClick={() => setIsFairnessModalOpen(true)}
+            className="neu-btn px-3.5 py-1.5 text-xs font-semibold text-ink-primary hover:text-emerald-500 flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow-sm"
+            title="Open F4.3 Fairness & Equity Audit Report"
+          >
+            <Scale className="w-3.5 h-3.5 text-emerald-500" />
+            <span>Fairness Audit</span>
           </button>
 
           {/* Total Events Logged Badge */}
@@ -686,7 +711,7 @@ export const ActivityLogSection: React.FC<ActivityLogSectionProps> = ({ events, 
                       Official Ledger Audit Trail Document
                     </h3>
                     <p className="text-xs text-ink-secondary">
-                      Complete record of all group transactions & revisions
+                      Append-only cryptographic lineage of all group transactions &amp; revisions
                     </p>
                   </div>
                 </div>
@@ -736,7 +761,7 @@ export const ActivityLogSection: React.FC<ActivityLogSectionProps> = ({ events, 
 
                   <div className="sm:text-right">
                     <span className="inline-block px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
-                      Verified
+                      Deterministic Zero-Sum Verified
                     </span>
                     <div className="text-[11px] text-ink-muted font-mono mt-1">
                       Exported: {new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
@@ -798,7 +823,7 @@ export const ActivityLogSection: React.FC<ActivityLogSectionProps> = ({ events, 
                 </div>
 
                 <div className="pt-3 border-t border-surface-hairline flex items-center justify-between text-[11px] text-ink-muted">
-                  <span>Reconciled · Event Stream</span>
+                  <span>Provably Reconciled · Append-Only Event Stream</span>
                   <span className="font-mono">Total Events: {(events || []).length}</span>
                 </div>
               </div>
@@ -806,6 +831,19 @@ export const ActivityLogSection: React.FC<ActivityLogSectionProps> = ({ events, 
           </div>
         )}
       </AnimatePresence>
+
+      {/* F4.3 Fairness & Equity Audit Modal */}
+      {trip && (
+        <FairnessReportModal
+          isOpen={isFairnessModalOpen}
+          onClose={() => setIsFairnessModalOpen(false)}
+          trip={trip}
+          participants={participants}
+          netBalances={netBalances}
+          expenses={expenses}
+          attendanceMatrix={attendanceMatrix}
+        />
+      )}
     </div>
   );
 };

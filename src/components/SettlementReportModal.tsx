@@ -123,12 +123,21 @@ export const SettlementReportModal: React.FC<SettlementReportModalProps> = ({
                 </span>
               </div>
               <p className="text-xs text-ink-secondary mt-0.5">
-                Clean, shareable summary of final balances, verification, and UPI settlement paths.
+                Clean, shareable summary of final balances, zero-sum proof, and UPI settlement paths.
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
+            <a
+              href={`/verified/${trip.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3 py-2 rounded-xl text-xs font-bold bg-teal-500/15 border border-teal-500/30 text-teal-400 hover:bg-teal-500 hover:text-white transition flex items-center gap-1.5 shadow-sm cursor-pointer"
+              title="View cryptographic public verification badge"
+            >
+              <ShieldCheck className="w-3.5 h-3.5" /> Trust Badge
+            </a>
             <button
               onClick={handleDownloadCSV}
               className="px-3 py-2 rounded-xl text-xs font-bold bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500 hover:text-white transition flex items-center gap-1.5 shadow-sm"
@@ -259,7 +268,7 @@ export const SettlementReportModal: React.FC<SettlementReportModalProps> = ({
           {/* Minimal Settlement Paths */}
           <div className="space-y-2">
             <h4 className="text-xs font-bold text-ink-secondary uppercase tracking-wider">
-              Minimal Debt Settlement Matrix (Optimised)
+              Minimal Debt Settlement Matrix (Greedy Netting)
             </h4>
             {simplifiedDebts.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

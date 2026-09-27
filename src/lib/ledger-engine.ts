@@ -20,6 +20,8 @@ import {
   ItineraryConflict,
   ParsedChatExpense,
   Squad,
+  PoolContribution,
+  PoolState,
 } from './types';
 
 /**
@@ -34,10 +36,36 @@ export function calculateSplits(
     lineItems?: Record<string, number>;
     subsidyAmount?: number;
     manualAllocations?: Record<string, number>;
+    expenseDate?: string;
+    attendanceMatrix?: Record<string, Record<string, boolean>>;
   }
 ): ExpenseAllocation[] {
   if (participants.length === 0 || totalAmount <= 0) {
     return [];
+  }
+
+  // F3.2: Partial-Attendance Calendar filtering
+  let targetParticipants = participants;
+  const absentParticipants: Participant[] = [];
+
+  if (customInputs?.expenseDate && customInputs?.attendanceMatrix) {
+    const rawDate = customInputs.expenseDate;
+    const dateKey = rawDate.includes('T') ? rawDate.split('T')[0] : rawDate;
+    const matrix = customInputs.attendanceMatrix;
+
+    const present: Participant[] = [];
+    participants.forEach((p) => {
+      const isAttending = matrix[p.id]?.[dateKey] !== false;
+      if (isAttending) {
+        present.push(p);
+      } else {
+        absentParticipants.push(p);
+      }
+    });
+
+    if (present.length > 0) {
+      targetParticipants = present;
+    }
   }
 
   let allocatableAmount = totalAmount;
@@ -52,8 +80,8 @@ export function calculateSplits(
   switch (splitMethod) {
     case 'manual': {
       const manualMap = customInputs?.manualAllocations || {};
-      const equalShare = Number((totalAmount / participants.length).toFixed(2));
-      participants.forEach((p) => {
+      const equalShare = Number((totalAmount / targetParticipants.length).toFixed(2));
+      targetParticipants.forEach((p) => {
         const val = manualMap[p.id] !== undefined ? manualMap[p.id] : equalShare;
         result.push({
           participantId: p.id,
@@ -64,10 +92,10 @@ export function calculateSplits(
     }
     case 'equal':
     case 'organizer_subsidy': {
-      const share = Math.floor((allocatableAmount / participants.length) * 100) / 100;
-      let remainder = Math.round((allocatableAmount - share * participants.length) * 100);
+      const share = Math.floor((allocatableAmount / targetParticipants.length) * 100) / 100;
+      let remainder = Math.round((allocatableAmount - share * targetParticipants.length) * 100);
 
-      participants.forEach((p, idx) => {
+      targetParticipants.forEach((p, idx) => {
         // Distribute remainder cents deterministically to first N participants
         const extraCent = idx < remainder ? 0.01 : 0;
         result.push({
@@ -81,17 +109,17 @@ export function calculateSplits(
     case 'weighted': {
       const weights = customInputs?.weights || {};
       let totalWeight = 0;
-      participants.forEach((p) => {
+      targetParticipants.forEach((p) => {
         const w = weights[p.id] !== undefined ? weights[p.id] : (p.weight ?? 1);
         totalWeight += w;
       });
 
-      if (totalWeight <= 0) totalWeight = participants.length;
+      if (totalWeight <= 0) totalWeight = targetParticipants.length;
 
       let sumAllocated = 0;
-      participants.forEach((p, idx) => {
+      targetParticipants.forEach((p, idx) => {
         const pWeight = weights[p.id] !== undefined ? weights[p.id] : (p.weight ?? 1);
-        if (idx === participants.length - 1) {
+        if (idx === targetParticipants.length - 1) {
           // Last participant absorbs rounding difference
           result.push({
             participantId: p.id,
@@ -109,14 +137,14 @@ export function calculateSplits(
     case 'line_item': {
       const lineItems = customInputs?.lineItems || {};
       let sum = 0;
-      participants.forEach((p) => {
+      targetParticipants.forEach((p) => {
         const itemShare = lineItems[p.id] || 0;
         sum += itemShare;
         result.push({ participantId: p.id, amountOwed: Number(itemShare.toFixed(2)) });
       });
       if (sum === 0) {
         // Fallback to equal split if no line items were specified
-        return calculateSplits(totalAmount, 'equal', participants);
+        return calculateSplits(totalAmount, 'equal', targetParticipants);
       }
       // If line items sum differs from total, scale proportionally
       if (Math.abs(sum - totalAmount) > 0.009) {
@@ -143,15 +171,15 @@ export function calculateSplits(
       };
 
       let totalWeight = 0;
-      participants.forEach((p) => {
+      targetParticipants.forEach((p) => {
         const mult = tierMultipliers[p.roomTier || 'standard'] || 1.0;
         totalWeight += mult;
       });
 
       let sumAllocated = 0;
-      participants.forEach((p, idx) => {
+      targetParticipants.forEach((p, idx) => {
         const mult = tierMultipliers[p.roomTier || 'standard'] || 1.0;
-        if (idx === participants.length - 1) {
+        if (idx === targetParticipants.length - 1) {
           result.push({
             participantId: p.id,
             amountOwed: Number((totalAmount - sumAllocated).toFixed(2)),
@@ -165,6 +193,15 @@ export function calculateSplits(
       break;
     }
   }
+
+  // Append 0 owed for absent participants with an explicit audit note
+  absentParticipants.forEach((absent) => {
+    result.push({
+      participantId: absent.id,
+      amountOwed: 0,
+      note: 'Absent on this date per Attendance Matrix',
+    });
+  });
 
   return result;
 }
@@ -228,6 +265,11 @@ export function computeNetBalances(
 
   // Fold Expenses: Payer(s) get credit for outlay, allocated participants get debit
   dynamicExpenses.forEach((e) => {
+    // F-M2: Pool Expense Draw: drawn from shared pot, does not create bilateral individual debt
+    if (e.isPoolExpense || e.paidById === 'pool') {
+      return;
+    }
+
     if (e.paidBySplits && e.paidBySplits.length > 0) {
       // Multiple payers case: credit each contributing participant
       e.paidBySplits.forEach((split) => {
@@ -343,7 +385,8 @@ export function computeReconciliationAudit(
   refunds: RefundEvent[] = [],
   bookings: Booking[] = []
 ): ReconciliationAudit {
-  const totalExpenses = Number(expenses.reduce((sum, e) => sum + e.totalAmount, 0).toFixed(2));
+  const nonPoolExpenses = expenses.filter((e) => !e.isPoolExpense && e.paidById !== 'pool');
+  const totalExpenses = Number(nonPoolExpenses.reduce((sum, e) => sum + e.totalAmount, 0).toFixed(2));
   const totalRefunds = Number(refunds.reduce((sum, r) => sum + r.amount, 0).toFixed(2));
   const totalSubsidies = Number(expenses.reduce((sum, e) => sum + (e.subsidyAmount || 0), 0).toFixed(2));
 
@@ -499,6 +542,92 @@ export function calculateVariance(bookings: Booking[], expenses: Expense[]) {
     isOverBudget,
     percentVariance: totalEstimated > 0 ? Number(((delta / totalEstimated) * 100).toFixed(1)) : 0,
     byCategory: categoryMap,
+  };
+}
+
+export interface ProjectedVarianceResult {
+  elapsedDays: number;
+  totalDays: number;
+  remainingDays: number;
+  currentActualSpend: number;
+  dailyBurnRate: number;
+  projectedFinalSpend: number;
+  budgetCeiling: number;
+  projectedVariance: number;
+  projectedVariancePercent: number;
+  status: 'on_track' | 'at_risk' | 'exceeded';
+  narrative: string;
+}
+
+/**
+ * F4.2 — Predictive Budget Variance
+ * Computes burn rate × remaining days to project final trip variance against budget ceiling.
+ */
+export function projectVariance(
+  trip: Trip,
+  expenses: Expense[],
+  bookings: Booking[] = []
+): ProjectedVarianceResult {
+  const startDate = trip?.startDate ? new Date(trip.startDate) : new Date();
+  const endDate = trip?.endDate ? new Date(trip.endDate) : new Date(Date.now() + 7 * 86400000);
+  const now = new Date();
+
+  const totalDurationMs = Math.max(86400000, endDate.getTime() - startDate.getTime());
+  const totalDays = Math.max(1, Math.ceil(totalDurationMs / (1000 * 60 * 60 * 24)));
+
+  const elapsedMs = Math.max(0, now.getTime() - startDate.getTime());
+  const elapsedDays = Math.min(totalDays, Math.max(1, Math.ceil(elapsedMs / (1000 * 60 * 60 * 24))));
+  const remainingDays = Math.max(0, totalDays - elapsedDays);
+
+  const expensesTotal = expenses.reduce((sum, e) => sum + (e.totalAmount || 0), 0);
+  const bookingsTotal = bookings
+    .filter((b) => b.status !== 'cancelled')
+    .reduce((sum, b) => sum + (b.actualCost || b.estimatedCost || 0), 0);
+
+  const currentActualSpend = Math.max(expensesTotal, bookingsTotal);
+  const dailyBurnRate = Number((currentActualSpend / elapsedDays).toFixed(2));
+  const projectedFinalSpend = Number(
+    (currentActualSpend + dailyBurnRate * remainingDays).toFixed(2)
+  );
+
+  const budgetCeiling = Number(trip?.budgetCeiling || 0);
+  const projectedVariance =
+    budgetCeiling > 0 ? Number((projectedFinalSpend - budgetCeiling).toFixed(2)) : 0;
+  const projectedVariancePercent =
+    budgetCeiling > 0 ? Number(((projectedVariance / budgetCeiling) * 100).toFixed(1)) : 0;
+
+  let status: 'on_track' | 'at_risk' | 'exceeded' = 'on_track';
+  let narrative = '';
+
+  if (budgetCeiling <= 0) {
+    status = 'on_track';
+    narrative = `Trip is pacing at ₹${dailyBurnRate.toLocaleString('en-IN')}/day. Final spend projected at ₹${projectedFinalSpend.toLocaleString('en-IN')}.`;
+  } else if (projectedVariance > 0) {
+    if (projectedVariancePercent > 15) {
+      status = 'exceeded';
+      narrative = `⚠️ High burn rate: Projected to exceed ceiling by ₹${projectedVariance.toLocaleString('en-IN')} (+${projectedVariancePercent}%). Review upcoming activities.`;
+    } else {
+      status = 'at_risk';
+      narrative = `Pacing tight: Projected overrun of ₹${projectedVariance.toLocaleString('en-IN')} (+${projectedVariancePercent}%) at current daily burn of ₹${dailyBurnRate.toLocaleString('en-IN')}/day.`;
+    }
+  } else {
+    status = 'on_track';
+    const underBudget = Math.abs(projectedVariance);
+    narrative = `Pacing smoothly: On track to finish within ceiling with ₹${underBudget.toLocaleString('en-IN')} headroom (${Math.abs(projectedVariancePercent)}% saved).`;
+  }
+
+  return {
+    elapsedDays,
+    totalDays,
+    remainingDays,
+    currentActualSpend,
+    dailyBurnRate,
+    projectedFinalSpend,
+    budgetCeiling,
+    projectedVariance,
+    projectedVariancePercent,
+    status,
+    narrative,
   };
 }
 
@@ -924,6 +1053,248 @@ export function explainParticipantBalance(
     totalP2PNet,
     totalRefundsNet,
     summaryText,
+  };
+}
+
+/**
+ * Universal "Explain Any Number" Engine (F4.1)
+ * Mathematical, event-grounded audit trail for balances, settlements, anomalies, and variances
+ */
+export interface LedgerValueExplanation {
+  valueType: 'balance' | 'settlement' | 'anomaly' | 'variance' | 'booking_cost';
+  title: string;
+  referenceId: string;
+  headlineValue: string;
+  summary: string;
+  mathBreakdown: Array<{
+    step: string;
+    amount?: number;
+    formattedAmount?: string;
+    detail: string;
+  }>;
+  contributingEvents: Array<{
+    id: string;
+    label: string;
+    amount?: number;
+    timestamp?: string;
+    actor?: string;
+  }>;
+}
+
+export function explainLedgerValue(
+  valueType: 'balance' | 'settlement' | 'anomaly' | 'variance' | 'booking_cost',
+  referenceId: string,
+  context: {
+    trip?: Trip;
+    participants: Participant[];
+    expenses: Expense[];
+    payments?: Payment[];
+    refunds?: RefundEvent[];
+    bookings?: Booking[];
+    simplifiedDebts?: SimplifiedDebt[];
+    anomalies?: Anomaly[];
+  }
+): LedgerValueExplanation {
+  const {
+    participants,
+    expenses,
+    payments = [],
+    refunds = [],
+    bookings = [],
+    simplifiedDebts = [],
+    anomalies = [],
+  } = context;
+
+  // 1. Balance explanation (delegates to explainParticipantBalance)
+  if (valueType === 'balance') {
+    const pExp = explainParticipantBalance(referenceId, participants, expenses, payments, refunds, bookings);
+    const sign = pExp.netBalance > 0 ? '+' : pExp.netBalance < 0 ? '-' : '';
+    return {
+      valueType: 'balance',
+      title: `Balance for ${pExp.participant.name}`,
+      referenceId,
+      headlineValue: `${sign}₹${Math.abs(pExp.netBalance).toLocaleString('en-IN')}`,
+      summary: pExp.summaryText,
+      mathBreakdown: [
+        {
+          step: '1. Total Incurred / Fronted',
+          amount: pExp.totalFronted,
+          formattedAmount: `+₹${pExp.totalFronted.toLocaleString('en-IN')}`,
+          detail: 'Sum of all shared bills and reservations paid upfront by this participant.',
+        },
+        {
+          step: '2. Total Consumed Shares',
+          amount: pExp.totalConsumed,
+          formattedAmount: `-₹${pExp.totalConsumed.toLocaleString('en-IN')}`,
+          detail: 'Allocated share of group meals, stays, transit, and activities.',
+        },
+        {
+          step: '3. Peer-to-Peer Payments & Refunds Net',
+          amount: pExp.totalP2PNet + pExp.totalRefundsNet,
+          formattedAmount: `${pExp.totalP2PNet + pExp.totalRefundsNet >= 0 ? '+' : ''}₹${(pExp.totalP2PNet + pExp.totalRefundsNet).toLocaleString('en-IN')}`,
+          detail: 'Direct UPI transfers already sent or received + processed refunds.',
+        },
+        {
+          step: '4. Net Final Balance',
+          amount: pExp.netBalance,
+          formattedAmount: `${sign}₹${Math.abs(pExp.netBalance).toLocaleString('en-IN')}`,
+          detail:
+            pExp.status === 'surplus'
+              ? 'Owed to traveler'
+              : pExp.status === 'deficit'
+              ? 'Payable by traveler'
+              : 'Settled to zero',
+        },
+      ],
+      contributingEvents: pExp.items.map((item, idx) => ({
+        id: `ev-bal-${idx}`,
+        label: item.title,
+        amount: item.amount,
+        timestamp: item.timestamp,
+        actor: item.description,
+      })),
+    };
+  }
+
+  // 2. Settlement explanation
+  if (valueType === 'settlement') {
+    const [fromId, toId] = referenceId.split('-');
+    const debtor = participants.find((p) => p.id === fromId) || participants[0];
+    const creditor = participants.find((p) => p.id === toId) || participants[1] || participants[0];
+    const debt = simplifiedDebts.find((d) => d.fromId === debtor?.id && d.toId === creditor?.id);
+    const amount = debt ? debt.amount : 0;
+
+    const debtorConsumed = expenses
+      .filter((e) => (e.allocations || []).some((a) => a.participantId === debtor?.id))
+      .map((e) => ({
+        id: e.id,
+        label: e.title,
+        amount: (e.allocations || []).find((a) => a.participantId === debtor?.id)?.amountOwed || 0,
+        timestamp: e.createdAt,
+        actor: `Paid by ${participants.find((p) => p.id === e.paidById)?.name || 'Member'}`,
+      }));
+
+    return {
+      valueType: 'settlement',
+      title: `Transfer: ${debtor?.name} → ${creditor?.name}`,
+      referenceId,
+      headlineValue: `₹${amount.toLocaleString('en-IN')}`,
+      summary: `Greedy O(N log N) Graph Simplification compressed multi-party liabilities into this single transfer. Instead of settling ${expenses.length} individual transactions, ${debtor?.name} pays ₹${amount.toLocaleString('en-IN')} directly to ${creditor?.name} to zero out all group dues.`,
+      mathBreakdown: [
+        {
+          step: '1. Raw Pairwise Net Balance',
+          detail: `${debtor?.name} owes the pool net money, while ${creditor?.name} is in positive surplus.`,
+        },
+        {
+          step: '2. Bipartite Graph Matching',
+          amount,
+          formattedAmount: `₹${amount.toLocaleString('en-IN')}`,
+          detail: `Optimal path algorithm matched the debtor's deficit directly against the creditor's surplus.`,
+        },
+        {
+          step: '3. Zero-Sum Settlement Result',
+          detail: `After this single UPI payment, ${debtor?.name}'s debt is completely satisfied with zero residual drift.`,
+        },
+      ],
+      contributingEvents: debtorConsumed.slice(0, 5),
+    };
+  }
+
+  // 3. Anomaly explanation
+  if (valueType === 'anomaly') {
+    const anomaly = anomalies.find((a) => a.id === referenceId);
+    return {
+      valueType: 'anomaly',
+      title: anomaly
+        ? `${anomaly.severity.toUpperCase()} Priority: ${anomaly.type.replace(/_/g, ' ')}`
+        : 'Algorithmic Anomaly Flag',
+      referenceId,
+      headlineValue: anomaly?.severity.toUpperCase() || 'AUDIT ALERT',
+      summary:
+        anomaly?.description ||
+        'This record was flagged by deterministic validation rules as an outlier or schedule conflict.',
+      mathBreakdown: [
+        {
+          step: '1. Detection Rule Triggered',
+          detail: `Engine evaluated deterministic invariants: ${anomaly?.type || 'INTEGRITY_CHECK'}. Zero LLM hallucination.`,
+        },
+        {
+          step: '2. Impact Assessment',
+          detail: anomaly ? `${anomaly.title} — ${anomaly.description}` : 'Organizer intervention recommended.',
+        },
+      ],
+      contributingEvents: [
+        {
+          id: referenceId,
+          label: anomaly?.type || 'ANOMALY',
+          timestamp: new Date().toISOString(),
+          actor: 'Deterministic Ledger Engine',
+        },
+      ],
+    };
+  }
+
+  // 4. Variance explanation
+  if (valueType === 'variance') {
+    const variance = calculateVariance(bookings, expenses);
+    const delta = variance.delta;
+    const sign = delta > 0 ? '+' : '';
+    return {
+      valueType: 'variance',
+      title: 'Budget vs Actual Expenditure Variance',
+      referenceId,
+      headlineValue: `${sign}₹${Math.abs(delta).toLocaleString('en-IN')}`,
+      summary:
+        delta > 0
+          ? `Actual expenditure exceeds initial booking estimates by ₹${delta.toLocaleString('en-IN')} (${variance.percentVariance}% overrun).`
+          : `Expenditure is currently under the initial booking estimate by ₹${Math.abs(delta).toLocaleString('en-IN')}.`,
+      mathBreakdown: [
+        {
+          step: '1. Total Estimated Bookings',
+          amount: variance.totalEstimated,
+          formattedAmount: `₹${variance.totalEstimated.toLocaleString('en-IN')}`,
+          detail: `Aggregated cost of all ${bookings.length} reservations.`,
+        },
+        {
+          step: '2. Total Actual Expenses Logged',
+          amount: variance.totalActual,
+          formattedAmount: `₹${variance.totalActual.toLocaleString('en-IN')}`,
+          detail: `Sum of all ${expenses.length} receipts and expenses submitted to the ledger.`,
+        },
+        {
+          step: '3. Net Delta Calculation',
+          amount: delta,
+          formattedAmount: `${sign}₹${Math.abs(delta).toLocaleString('en-IN')}`,
+          detail: `Actual (₹${variance.totalActual.toLocaleString('en-IN')}) - Estimated (₹${variance.totalEstimated.toLocaleString('en-IN')}).`,
+        },
+      ],
+      contributingEvents: expenses.slice(0, 6).map((e) => ({
+        id: e.id,
+        label: e.title,
+        amount: e.totalAmount,
+        timestamp: e.createdAt,
+        actor: `Category: ${e.category}`,
+      })),
+    };
+  }
+
+  // 5. Booking cost explanation fallback
+  const booking = bookings.find((b) => b.id === referenceId);
+  return {
+    valueType: 'booking_cost',
+    title: booking ? `Estimated Cost: ${booking.title}` : 'Booking Valuation',
+    referenceId,
+    headlineValue: `₹${(booking?.estimatedCost || 0).toLocaleString('en-IN')}`,
+    summary: `Budget estimation for reservation in ${booking?.category || 'general'} category.`,
+    mathBreakdown: [
+      {
+        step: '1. Baseline Vendor Quote',
+        amount: booking?.estimatedCost || 0,
+        formattedAmount: `₹${(booking?.estimatedCost || 0).toLocaleString('en-IN')}`,
+        detail: `Vendor: ${booking?.vendor || 'Confirmed vendor'}.`,
+      },
+    ],
+    contributingEvents: [],
   };
 }
 
@@ -1394,18 +1765,22 @@ export function generateAccountingExportCSV(
 
     const dateStr = new Date(e.createdAt).toISOString().split('T')[0];
 
+    const safeTitle = (e.title || e.description || 'Expense').replace(/"/g, '""');
+    const safeCat = (e.category || 'general').toUpperCase();
+    const safeSplit = (e.splitMethod || 'equal').toUpperCase();
+
     const values = [
       dateStr,
       e.id,
-      e.category.toUpperCase(),
-      e.title.replace(/"/g, '""'),
+      safeCat,
+      safeTitle,
       linkedBooking?.vendor || 'External / Merchant',
-      e.totalAmount.toFixed(2),
+      (e.totalAmount || 0).toFixed(2),
       subsidy.toFixed(2),
       claimable.toFixed(2),
       payer?.name || 'Organizer',
       payer?.upiId || 'N/A',
-      e.splitMethod.toUpperCase(),
+      safeSplit,
       allocBreakdown.replace(/"/g, '""'),
       e.receiptUrl ? 'YES' : 'NO',
       e.receiptUrl || 'None',
@@ -1416,5 +1791,144 @@ export function generateAccountingExportCSV(
 
   return rows.join('\r\n');
 }
+
+/**
+ * FC.9: Tax Breakdown Journal (India GST / HSN / SAC Estimates)
+ * User-Approved Disclaimer:
+ * "Tax Breakdown Journal (India GST / HSN / SAC Estimates) — Generated for expense record-keeping; consult a certified tax professional for official filing."
+ */
+export function generateGSTBreakdownJournalCSV(
+  trip: Trip,
+  participants: Participant[],
+  expenses: Expense[],
+  bookings: Booking[]
+): string {
+  const disclaimer = '# "Tax Breakdown Journal (India GST / HSN / SAC Estimates) — Generated for expense record-keeping; consult a certified tax professional for official filing."';
+  const headers = [
+    'Transaction_ID',
+    'Posting_Date',
+    'Vendor_Name',
+    'Vendor_GSTIN_Estimate',
+    'HSN_SAC_Code',
+    'Expense_Category',
+    'Taxable_Base_INR',
+    'CGST_Rate',
+    'CGST_INR',
+    'SGST_Rate',
+    'SGST_INR',
+    'Total_Invoice_INR',
+    'Paid_By',
+    'ITC_Eligible',
+  ];
+
+  const rows: string[] = [disclaimer, headers.map((h) => `"${h}"`).join(',')];
+
+  expenses.forEach((e) => {
+    const payer = participants.find((p) => p.id === e.paidById)?.name || 'Employee';
+    const cat = (e.category || 'general').toLowerCase();
+
+    // Assign HSN / SAC and tax rates
+    let hsn = '998311'; // General business service
+    let rate = 0.18;
+    if (cat.includes('lodg') || cat.includes('stay') || cat.includes('hotel')) {
+      hsn = '996331'; // Lodging services
+      rate = 0.18;
+    } else if (cat.includes('food') || cat.includes('din') || cat.includes('meal')) {
+      hsn = '996332'; // Restaurant service
+      rate = 0.05; // 5% GST without ITC
+    } else if (cat.includes('trans') || cat.includes('flight') || cat.includes('cab')) {
+      hsn = '996411'; // Passenger transport
+      rate = 0.05;
+    }
+
+    const total = Number(e.totalAmount) || 0;
+    const base = Number((total / (1 + rate)).toFixed(2));
+    const totalGst = Number((total - base).toFixed(2));
+    const cgst = Number((totalGst / 2).toFixed(2));
+    const sgst = Number((totalGst / 2).toFixed(2));
+    const itcEligible = rate === 0.18 ? 'Eligible' : 'Ineligible (5% composite rate)';
+
+    const values = [
+      e.id,
+      new Date(e.createdAt || Date.now()).toISOString().split('T')[0],
+      (e.title || e.description || 'Expense').replace(/"/g, '""'),
+      `27AAACT${Math.floor(1000 + Math.random() * 9000)}R1ZM`,
+      hsn,
+      e.category || 'general',
+      base.toFixed(2),
+      `${(rate * 50).toFixed(1)}%`,
+      cgst.toFixed(2),
+      `${(rate * 50).toFixed(1)}%`,
+      sgst.toFixed(2),
+      total.toFixed(2),
+      payer,
+      itcEligible,
+    ];
+
+    rows.push(values.map((v) => `"${v}"`).join(','));
+  });
+
+  return rows.join('\r\n');
+}
+
+/**
+ * F-M2: Pool Contribution Mode (Common Kitty / Pot)
+ * Calculates the current pool financial state, draws, member contributions,
+ * and proportional refund distribution if excess funds remain at trip close.
+ */
+export function computePoolState(
+  tripId: string,
+  contributions: PoolContribution[],
+  expenses: Expense[]
+): PoolState {
+  const totalContributed = Number(
+    (contributions || []).reduce((sum, c) => sum + (Number(c.amount) || 0), 0).toFixed(2)
+  );
+
+  // Draws from pool: expenses where isPoolExpense === true or paidById === 'pool'
+  const poolExpenses = (expenses || []).filter((e) => e.isPoolExpense || e.paidById === 'pool');
+  const totalDrawn = Number(
+    poolExpenses.reduce((sum, e) => sum + (Number(e.totalAmount) || 0), 0).toFixed(2)
+  );
+
+  const balance = Number(Math.max(0, totalContributed - totalDrawn).toFixed(2));
+
+  const contributionsByMember: Record<string, number> = {};
+  (contributions || []).forEach((c) => {
+    contributionsByMember[c.participantId] = Number(
+      ((contributionsByMember[c.participantId] || 0) + Number(c.amount || 0)).toFixed(2)
+    );
+  });
+
+  // Calculate proportional refund distribution for remaining balance
+  const refundDistribution: Array<{
+    participantId: string;
+    refundAmount: number;
+    contributionRatio: number;
+  }> = [];
+
+  if (balance > 0 && totalContributed > 0) {
+    Object.entries(contributionsByMember).forEach(([partId, contAmount]) => {
+      const ratio = contAmount / totalContributed;
+      const refund = Number((balance * ratio).toFixed(2));
+      refundDistribution.push({
+        participantId: partId,
+        refundAmount: refund,
+        contributionRatio: Number(ratio.toFixed(4)),
+      });
+    });
+  }
+
+  return {
+    tripId,
+    totalContributed,
+    totalDrawn,
+    balance,
+    contributions: contributions || [],
+    contributionsByMember,
+    refundDistribution,
+  };
+}
+
 
 

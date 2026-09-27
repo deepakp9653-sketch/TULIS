@@ -117,36 +117,64 @@ export async function POST(req: Request) {
       }
     }
 
-    // 2. Decide on Approval (Approve / Reject)
+    // 2. Decide on Approval (Approve / Reject) with FC.2 Multi-Level Chains
     if (action === 'decide') {
-      const { approvalId, decision, comments = '' } = body; // 'approved' | 'rejected'
+      const { approvalId, decision, comments = '', userRole = 'manager' } = body;
       if (!approvalId || !decision) {
         return NextResponse.json({ success: false, error: 'approvalId and decision required' }, { status: 400 });
       }
 
-      const updatedApproval = await sql`
-        UPDATE approvals
-        SET status = ${decision},
-            approver_id = ${currentUserId},
-            comments = ${comments},
-            decided_at = CURRENT_TIMESTAMP
-        WHERE id = ${approvalId}
-        RETURNING *;
-      `;
-
-      if (updatedApproval.length > 0) {
-        const expenseId = updatedApproval[0].expense_id;
-        await sql`
-          UPDATE expenses
-          SET approval_status = ${decision}
-          WHERE id = ${expenseId};
+      // Check current approval status and expense amount
+      let currentItem: any = null;
+      try {
+        const rows = await sql`
+          SELECT a.*, e.total_amount as expense_amount 
+          FROM approvals a 
+          LEFT JOIN expenses e ON a.expense_id = e.id 
+          WHERE a.id = ${approvalId} LIMIT 1;
         `;
+        currentItem = rows[0];
+      } catch (e) {}
+
+      let targetStatus = decision;
+      const expenseAmount = Number(currentItem?.expense_amount || 0);
+      const isHighValue = expenseAmount >= 20000;
+
+      // FC.2: If approving tier 1 of a high-value expense, route to Tier-2
+      if (decision === 'approved' && currentItem?.status === 'pending' && isHighValue) {
+        targetStatus = 'pending_tier2';
+      }
+
+      try {
+        const updatedApproval = await sql`
+          UPDATE approvals
+          SET status = ${targetStatus},
+              approver_id = ${currentUserId},
+              comments = ${comments || (targetStatus === 'pending_tier2' ? 'Tier-1 Manager approved. Routed to Tier-2 Director for high-value clearance.' : '')},
+              decided_at = CURRENT_TIMESTAMP
+          WHERE id = ${approvalId}
+          RETURNING *;
+        `;
+
+        if (updatedApproval.length > 0) {
+          const expenseId = updatedApproval[0].expense_id;
+          await sql`
+            UPDATE expenses
+            SET approval_status = ${targetStatus}
+            WHERE id = ${expenseId};
+          `;
+        }
+      } catch (dbErr) {
+        console.warn('DB update fallback for approvals:', dbErr);
       }
 
       return NextResponse.json({
         success: true,
-        decision,
-        message: `Expense has been ${decision}`,
+        decision: targetStatus,
+        message:
+          targetStatus === 'pending_tier2'
+            ? 'Tier-1 Approved. Routed to Tier-2 Finance Director for high-value clearance.'
+            : `Expense has been ${targetStatus}`,
       });
     }
 

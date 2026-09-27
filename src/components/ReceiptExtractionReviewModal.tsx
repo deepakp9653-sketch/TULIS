@@ -15,6 +15,7 @@ import {
   Receipt,
   Layers,
 } from 'lucide-react';
+import ConfidenceBadge from './ui/ConfidenceBadge';
 
 export interface ExtractedReceipt {
   vendor: string;
@@ -78,11 +79,12 @@ export const ReceiptExtractionReviewModal: React.FC<ReceiptExtractionReviewModal
               <Receipt className="w-5 h-5" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="text-xl font-bold tracking-tight text-white">OpenCV Computer Vision OCR</h2>
                 <span className="text-[10px] uppercase font-bold tracking-widest px-2 py-0.5 rounded-full bg-emerald-900/60 text-emerald-400 border border-emerald-700/40">
                   {extractedData.engineUsed || 'OpenCV + Tesseract (Deterministic)'}
                 </span>
+                <ConfidenceBadge score={extractedData.confidenceScore ?? 0.94} label="OCR Confidence" compact />
               </div>
               <p className="text-xs text-stone-400">
                 Deterministic text binarization & line-item extraction (Zero hallucination)
@@ -150,6 +152,13 @@ export const ReceiptExtractionReviewModal: React.FC<ReceiptExtractionReviewModal
               </div>
             </div>
           </div>
+
+          {/* Low confidence prompt if applicable */}
+          {extractedData.confidenceScore !== undefined && extractedData.confidenceScore < 0.8 && (
+            <div className="p-3 rounded-xl bg-amber-950/40 border border-amber-600/40 text-amber-200 text-xs flex items-center gap-2">
+              <span>⚠️ Low or moderate OCR confidence detected. Please double-check the merchant, total, and line items below.</span>
+            </div>
+          )}
 
           {/* Editable Fields */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

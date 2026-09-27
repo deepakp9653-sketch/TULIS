@@ -39,6 +39,7 @@ interface LandingPageProps {
   onOpenAuth?: () => void;
   onOpenCorporateAuth?: () => void;
   onOpenMyTrips?: () => void;
+  onOpenGogoPlanner?: () => void;
 }
 
 export const LandingPage: React.FC<LandingPageProps> = ({

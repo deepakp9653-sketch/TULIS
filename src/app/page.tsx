@@ -29,6 +29,7 @@ import {
   OfflineCommand,
   ParsedChatExpense,
   TabType,
+  PoolContribution,
 } from '@/lib/types';
 import {
   computeNetBalances,
@@ -39,6 +40,7 @@ import {
   computeReconciliationAudit,
   checkDuplicateExpense,
   netCrossTripSquadBalances,
+  computePoolState,
 } from '@/lib/ledger-engine';
 import { DashboardShell } from '@/components/DashboardShell';
 import { OverviewSection } from '@/components/OverviewSection';
@@ -60,8 +62,11 @@ import { CreateTripModal } from '@/components/CreateTripModal';
 import { JoinTripModal } from '@/components/JoinTripModal';
 import { TripSwitcherModal } from '@/components/TripSwitcherModal';
 import { AuthModal } from '@/components/AuthModal';
+import { GoogleOneTapPrompt } from '@/components/GoogleOneTapPrompt';
 import { MyTripsModal } from '@/components/MyTripsModal';
+import { TripCloneReviewModal } from '@/components/TripCloneReviewModal';
 import { TripAccessGateModal } from '@/components/TripAccessGateModal';
+import { CapabilityType } from '@/components/CapabilityPermissionsModal';
 import { AuthSessionUser } from '@/lib/auth-service';
 import { UpiSetupModal } from '@/components/UpiSetupModal';
 import { ChaosDemoModal } from '@/components/ChaosDemoModal';
@@ -86,9 +91,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Compass, Plus, Key, Sun, Moon } from 'lucide-react';
 import { SafetyDock } from '@/components/SafetyDock';
 import { SafetyModeOnboardingScreen } from '@/components/SafetyModeOnboardingScreen';
-import { GogoFAB } from '@/components/GogoFAB';
-import { GogoInterviewModal } from '@/components/GogoInterviewModal';
-import { GogoPlanPreviewModal } from '@/components/GogoPlanPreviewModal';
+import { GogoUnifiedModal, GogoTab } from '@/components/GogoUnifiedModal';
+import { GogoSingleFAB } from '@/components/GogoSingleFAB';
 import { ReceiptUploadDropzone } from '@/components/ReceiptUploadDropzone';
 import { ReceiptExtractionReviewModal, ExtractedReceipt } from '@/components/ReceiptExtractionReviewModal';
 import { OrgDashboardModal } from '@/components/OrgDashboardModal';
@@ -97,6 +101,16 @@ import { TripChatPanel } from '@/components/TripChatPanel';
 import { TripChatFAB } from '@/components/TripChatFAB';
 import { CorporateAuthModal } from '@/components/CorporateAuthModal';
 import { CorporateDashboardShell } from '@/components/CorporateDashboardShell';
+import { CheckInSetupModal } from '@/components/CheckInSetupModal';
+import { BookingImportReviewModal } from '@/components/BookingImportReviewModal';
+import { OrganizerSuccessionModal } from '@/components/OrganizerSuccessionModal';
+import { TrustAndReputationModal } from '@/components/TrustAndReputationModal';
+import { TripRetrospectiveModal } from '@/components/TripRetrospectiveModal';
+import { DisputeMediatorModal } from '@/components/DisputeMediatorModal';
+import { LiveSquadMapView } from '@/components/LiveSquadMapView';
+import { FinancialCoachInsight } from '@/components/FinancialCoachInsight';
+import { PoolContributionModal } from '@/components/PoolContributionModal';
+import { UniversalItineraryImporterModal } from '@/components/UniversalItineraryImporterModal';
 
 export default function Home() {
   const [viewMode, setViewMode] = useState<'landing' | 'app' | 'corporate'>('landing');
@@ -106,14 +120,13 @@ export default function Home() {
   const [trips, setTrips] = useState<Trip[]>([INITIAL_TRIP]);
   const [activeTripId, setActiveTripId] = useState<string>(INITIAL_TRIP.id);
 
-  // Floating Trip Chat & AI State
-  const [isTripChatOpen, setIsTripChatOpen] = useState<boolean>(false);
+  // Unified Gogo Single Popup State
+  const [isGogoModalOpen, setIsGogoModalOpen] = useState<boolean>(false);
+  const [gogoModalTab, setGogoModalTab] = useState<GogoTab>('chat');
+  const [gogoInitialMessage, setGogoInitialMessage] = useState<string | undefined>(undefined);
 
   // Phase 2 Supertool States
   const [isSafetyOnboardingOpen, setIsSafetyOnboardingOpen] = useState<boolean>(false);
-  const [isGogoInterviewOpen, setIsGogoInterviewOpen] = useState<boolean>(false);
-  const [isGogoPreviewOpen, setIsGogoPreviewOpen] = useState<boolean>(false);
-  const [generatedGogoPlan, setGeneratedGogoPlan] = useState<any | null>(null);
 
   const [isReceiptDropzoneOpen, setIsReceiptDropzoneOpen] = useState<boolean>(false);
   const [isReceiptReviewOpen, setIsReceiptReviewOpen] = useState<boolean>(false);
@@ -121,6 +134,38 @@ export default function Home() {
   const [receiptImagePreview, setReceiptImagePreview] = useState<string | null>(null);
 
   const [isOrgModalOpen, setIsOrgModalOpen] = useState<boolean>(false);
+  const [isCheckInModalOpen, setIsCheckInModalOpen] = useState<boolean>(false);
+  const [isEmailImportOpen, setIsEmailImportOpen] = useState<boolean>(false);
+  const [isSuccessionModalOpen, setIsSuccessionModalOpen] = useState<boolean>(false);
+  const [isTrustScoreModalOpen, setIsTrustScoreModalOpen] = useState<boolean>(false);
+  const [selectedTrustParticipant, setSelectedTrustParticipant] = useState<Participant | null>(null);
+  const [isSquadLogisticsOpen, setIsSquadLogisticsOpen] = useState<boolean>(false);
+  const [isRetrospectiveOpen, setIsRetrospectiveOpen] = useState<boolean>(false);
+  const [isDisputeMediatorOpen, setIsDisputeMediatorOpen] = useState<boolean>(false);
+  const [activeDisputeData, setActiveDisputeData] = useState<any | null>(null);
+  const [isFinancialCoachOpen, setIsFinancialCoachOpen] = useState<boolean>(false);
+  const [isPoolModalOpen, setIsPoolModalOpen] = useState<boolean>(false);
+  const [isUniversalImporterOpen, setIsUniversalImporterOpen] = useState<boolean>(false);
+  const [poolContributionsMap, setPoolContributionsMap] = useState<Record<string, PoolContribution[]>>({
+    [INITIAL_TRIP.id]: [
+      {
+        id: 'pool-c-1',
+        tripId: INITIAL_TRIP.id,
+        participantId: 'p1',
+        amount: 3000,
+        note: 'Upfront fuel & tolls kitty',
+        createdAt: '2026-09-24T10:00:00Z',
+      },
+      {
+        id: 'pool-c-2',
+        tripId: INITIAL_TRIP.id,
+        participantId: 'p2',
+        amount: 3000,
+        note: 'Common group kitty',
+        createdAt: '2026-09-24T10:05:00Z',
+      },
+    ],
+  });
 
   const [participantsMap, setParticipantsMap] = useState<Record<string, Participant[]>>({
     [INITIAL_TRIP.id]: INITIAL_PARTICIPANTS,
@@ -154,6 +199,12 @@ export default function Home() {
   const [isJoinTripOpen, setIsJoinTripOpen] = useState<boolean>(false);
   const [isTripSwitcherOpen, setIsTripSwitcherOpen] = useState<boolean>(false);
   const [isAuthOpen, setIsAuthOpen] = useState<boolean>(false);
+  const [authModalMode, setAuthModalMode] = useState<'otp-login' | 'login' | 'register' | 'otp' | 'google'>('otp-login');
+
+  const handleOpenAuth = (mode?: 'otp-login' | 'login' | 'register' | 'otp' | 'google') => {
+    setAuthModalMode(mode || 'otp-login');
+    setIsAuthOpen(true);
+  };
   const [isCorporateAuthOpen, setIsCorporateAuthOpen] = useState<boolean>(false);
   const [currentCorporateOrg, setCurrentCorporateOrg] = useState<any | null>(null);
   const [isMyTripsOpen, setIsMyTripsOpen] = useState<boolean>(false);
@@ -166,6 +217,7 @@ export default function Home() {
   const [isProfileCompletionOpen, setIsProfileCompletionOpen] = useState<boolean>(false);
   const [isTripGatewayOpen, setIsTripGatewayOpen] = useState<boolean>(false);
   const [userAssociatedTrips, setUserAssociatedTrips] = useState<Trip[]>([]);
+  const [capabilitiesMap, setCapabilitiesMap] = useState<Record<string, string[]>>({});
 
   // Seamless Light/Dark Theme Management State
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
@@ -338,6 +390,52 @@ export default function Home() {
       .catch((err) => console.warn('Session verification error:', err));
   }, []);
 
+  // F2.3: Fetch capability delegations for active trip
+  useEffect(() => {
+    if (!activeTripId) return;
+    fetch('/api/trips', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'get-capabilities', tripId: activeTripId }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.capabilities) {
+          setCapabilitiesMap(data.capabilities);
+        }
+      })
+      .catch((err) => console.warn('Failed to load trip capabilities:', err));
+  }, [activeTripId]);
+
+  const handleToggleCapability = async (
+    participantId: string,
+    capability: CapabilityType,
+    granted: boolean
+  ) => {
+    setCapabilitiesMap((prev) => {
+      const current = prev[participantId] || [];
+      const updated = granted
+        ? Array.from(new Set([...current, capability]))
+        : current.filter((c) => c !== capability);
+      return { ...prev, [participantId]: updated };
+    });
+
+    try {
+      await fetch('/api/trips', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: granted ? 'grant-capability' : 'revoke-capability',
+          tripId: trip.id,
+          participantId,
+          capability,
+        }),
+      });
+    } catch (err) {
+      console.error('Capability sync error:', err);
+    }
+  };
+
   // Persist state changes to localStorage (Only runs AFTER client hydration so it NEVER overwrites saved session on mount)
   useEffect(() => {
     if (!isHydrated) return;
@@ -398,6 +496,8 @@ export default function Home() {
   const [isEditBookingOpen, setIsEditBookingOpen] = useState<boolean>(false);
   const [activeBookingToCancel, setActiveBookingToCancel] = useState<Booking | null>(null);
   const [activeBookingToEdit, setActiveBookingToEdit] = useState<Booking | null>(null);
+  const [isCloneReviewOpen, setIsCloneReviewOpen] = useState<boolean>(false);
+  const [sourceTripToClone, setSourceTripToClone] = useState<any | null>(null);
 
   // Phase 2 & 4 Advanced Feature Modals State
   const [isChaosDemoOpen, setIsChaosDemoOpen] = useState<boolean>(false);
@@ -437,6 +537,33 @@ export default function Home() {
   const [isSyncingQueue, setIsSyncingQueue] = useState<boolean>(false);
 
   const [isCrossTripNettingActive, setIsCrossTripNettingActive] = useState<boolean>(false);
+  const [attendanceMatrixMap, setAttendanceMatrixMap] = useState<
+    Record<string, Record<string, Record<string, boolean>>>
+  >({});
+
+  const handleChangeAttendance = (participantId: string, dateKey: string, isPresent: boolean) => {
+    setAttendanceMatrixMap((prev) => {
+      const tripMatrix = prev[trip?.id || 'default'] || {};
+      const userDates = tripMatrix[participantId] || {};
+      return {
+        ...prev,
+        [trip?.id || 'default']: {
+          ...tripMatrix,
+          [participantId]: {
+            ...userDates,
+            [dateKey]: isPresent,
+          },
+        },
+      };
+    });
+  };
+
+  const handleSetAttendanceMatrix = (newMatrix: Record<string, Record<string, boolean>>) => {
+    setAttendanceMatrixMap((prev) => ({
+      ...prev,
+      [trip?.id || 'default']: newMatrix,
+    }));
+  };
 
   const [dismissedAnomalyIds, setDismissedAnomalyIds] = useState<string[]>([]);
   const [squads, setSquads] = useState<Squad[]>([
@@ -489,6 +616,7 @@ export default function Home() {
   };
 
   const audit = computeReconciliationAudit(participants, expenses, payments, refunds, bookings);
+  const poolState = computePoolState(trip.id, poolContributionsMap[trip.id] || [], expenses);
   const rawAnomalies = detectAnomalies(trip, participants, bookings, expenses, payments);
   const activeAnomalies = rawAnomalies.filter((a) => !dismissedAnomalyIds.includes(a.id));
 
@@ -1167,11 +1295,14 @@ export default function Home() {
     }
 
     const activeParts = participants.filter((p) => p.status === 'active');
-    const allocations = (data.splitMethod === 'manual' && data.allocations && data.allocations.length > 0)
-      ? data.allocations
-      : calculateSplits(data.totalAmount, data.splitMethod, activeParts, {
-          subsidyAmount: data.subsidyAmount,
-        });
+    const allocations =
+      data.splitMethod === 'manual' && data.allocations && data.allocations.length > 0
+        ? data.allocations
+        : calculateSplits(data.totalAmount, data.splitMethod, activeParts, {
+            subsidyAmount: data.subsidyAmount,
+            expenseDate: data.createdAt || new Date().toISOString(),
+            attendanceMatrix: attendanceMatrixMap[trip.id],
+          });
 
     const newExpense: Expense = {
       id: 'e-' + Date.now(),
@@ -1778,7 +1909,7 @@ export default function Home() {
           onOpenCreateTrip={() => setIsCreateTripOpen(true)}
           onOpenJoinTrip={() => setIsJoinTripOpen(true)}
           currentUser={currentUserSession}
-          onOpenAuth={() => setIsAuthOpen(true)}
+          onOpenAuth={handleOpenAuth}
           onOpenCorporateAuth={() => setIsCorporateAuthOpen(true)}
           onOpenMyTrips={() => {
             if (currentUserSession?.isCorporate) {
@@ -1788,8 +1919,12 @@ export default function Home() {
                 setIsTripGatewayOpen(true);
               });
             } else {
-              setIsAuthOpen(true);
+              handleOpenAuth('otp-login');
             }
+          }}
+          onOpenGogoPlanner={() => {
+            setGogoModalTab('planner');
+            setIsGogoModalOpen(true);
           }}
         />
 
@@ -1856,9 +1991,24 @@ export default function Home() {
           currentUser={currentUserSession}
         />
 
+        {/* Google 1-Click Native One-Tap Prompt */}
+        <GoogleOneTapPrompt
+          currentUser={currentUserSession}
+          onSuccess={async (sessionUser, needsProfileCompletion) => {
+            setCurrentUserSession(sessionUser);
+            await syncUserTrips(sessionUser, undefined, false);
+            if (needsProfileCompletion || !sessionUser.profileCompleted) {
+              setIsProfileCompletionOpen(true);
+            } else {
+              triggerToast(`Welcome back, ${sessionUser.name}! Signed in via Google One-Click.`);
+            }
+          }}
+        />
+
         <AuthModal
           isOpen={isAuthOpen}
           onClose={() => setIsAuthOpen(false)}
+          defaultMode={authModalMode}
           onSwitchToCorporate={() => {
             setIsAuthOpen(false);
             setIsCorporateAuthOpen(true);
@@ -1945,6 +2095,22 @@ export default function Home() {
             setIsJoinTripOpen(true);
           }}
           onLogout={handleLogout}
+        />
+
+        {/* Unified Single Gogo Pop-up (Accessible from Landing Page) */}
+        <GogoUnifiedModal
+          isOpen={isGogoModalOpen}
+          onClose={() => setIsGogoModalOpen(false)}
+          trip={INITIAL_TRIP}
+          participants={INITIAL_PARTICIPANTS}
+          currentUser={currentUserSession}
+          initialTab={gogoModalTab}
+          onTripCreated={(newTrip) => {
+            setTrips((prev) => [newTrip, ...prev.filter((t) => t.id !== newTrip.id)]);
+            setActiveTripId(newTrip.id);
+            setViewMode('app');
+            triggerToast(`Trip "${newTrip.title}" materialized and saved to Neon DB!`);
+          }}
         />
       </>
     );
@@ -2097,7 +2263,8 @@ export default function Home() {
         activeTab={activeTab}
         onTabChange={(tab) => {
           if (tab === 'chat') {
-            setIsTripChatOpen(true);
+            setGogoModalTab('chat');
+            setIsGogoModalOpen(true);
           } else {
             setActiveTab(tab);
           }
@@ -2126,7 +2293,7 @@ export default function Home() {
         }}
         onOpenMyTrips={() => {
           if (!currentUserSession) {
-            setIsAuthOpen(true);
+            handleOpenAuth('otp-login');
             triggerToast('Sign in to access your cloud trips.');
           } else {
             syncUserTrips(currentUserSession, undefined, false).then(() => {
@@ -2134,12 +2301,15 @@ export default function Home() {
             });
           }
         }}
-        onOpenAuth={() => setIsAuthOpen(true)}
+        onOpenAuth={handleOpenAuth}
         currentUserSession={currentUserSession}
         onGoToLanding={handleLogout}
         onOpenScanReceipt={() => setIsReceiptDropzoneOpen(true)}
         onOpenCorporateOrg={() => setViewMode('corporate')}
-        onOpenGogoPlanner={() => setIsGogoInterviewOpen(true)}
+        onOpenGogoPlanner={() => {
+          setGogoModalTab('planner');
+          setIsGogoModalOpen(true);
+        }}
       >
         <AnimatePresence mode="wait">
           <motion.div
@@ -2188,7 +2358,10 @@ export default function Home() {
                 onOpenRoomOptimizer={() => setIsRoomOptimizerOpen(true)}
                 onOpenSettlementReport={() => setIsSettlementReportOpen(true)}
                 onOpenSquadManager={() => setIsSquadManagerOpen(true)}
-                onOpenGogoPlanner={() => setIsGogoInterviewOpen(true)}
+                onOpenGogoPlanner={() => {
+                  setGogoModalTab('planner');
+                  setIsGogoModalOpen(true);
+                }}
                 onOpenScanReceipt={() => setIsReceiptDropzoneOpen(true)}
                 onToggleSafetyMode={() => {
                   setTrips((prevTrips) =>
@@ -2196,6 +2369,12 @@ export default function Home() {
                       t.id === trip.id ? { ...t, safetyModeEnabled: !t.safetyModeEnabled } : t
                     )
                   );
+                }}
+                onOpenCheckIn={() => setIsCheckInModalOpen(true)}
+                onOpenAssistantWithMessage={(msg) => {
+                  setGogoInitialMessage(msg);
+                  setGogoModalTab('chat');
+                  setIsGogoModalOpen(true);
                 }}
               />
             )}
@@ -2220,6 +2399,8 @@ export default function Home() {
                   setIsCancelBookingOpen(true);
                 }}
                 onOpenVendors={() => setIsVendorsOpen(true)}
+                onOpenEmailImport={() => setIsEmailImportOpen(true)}
+                onOpenUniversalImporter={() => setIsUniversalImporterOpen(true)}
                 onDisputeAllocation={handleDisputeAllocation}
                 onResolveDispute={handleResolveDispute}
               />
@@ -2233,6 +2414,13 @@ export default function Home() {
                 simplifiedDebts={effectiveSimplifiedDebts}
                 currentUserId={currentUserId}
                 payments={payments}
+                expenses={expenses}
+                trip={trip}
+                attendanceMatrix={attendanceMatrixMap[trip.id] || {}}
+                onChangeAttendance={handleChangeAttendance}
+                onSetAttendanceMatrix={handleSetAttendanceMatrix}
+                capabilitiesMap={capabilitiesMap}
+                onToggleCapability={handleToggleCapability}
                 onAddParticipant={handleAddParticipant}
                 onToggleStatus={handleToggleParticipantStatus}
                 onUpdateParticipantWeight={handleUpdateParticipantWeight}
@@ -2250,6 +2438,19 @@ export default function Home() {
                   setExplainParticipantId(pid);
                   setIsExplainBalanceOpen(true);
                 }}
+                onOpenSuccession={() => setIsSuccessionModalOpen(true)}
+                onOpenTrustScore={(p) => {
+                  setSelectedTrustParticipant(p);
+                  setIsTrustScoreModalOpen(true);
+                }}
+                onOpenSquadLogistics={() => setIsSquadLogisticsOpen(true)}
+                onOpenRetrospective={() => setIsRetrospectiveOpen(true)}
+                onOpenDisputeMediator={(disp) => {
+                  setActiveDisputeData(disp);
+                  setIsDisputeMediatorOpen(true);
+                }}
+                onOpenPoolContribution={() => setIsPoolModalOpen(true)}
+                poolBalance={poolState.balance}
               />
             )}
 
@@ -2263,6 +2464,10 @@ export default function Home() {
                     participants.find((p) => p.id === currentUserId)?.name ||
                     'Traveler'
                   }
+                  trip={trip}
+                  participants={participants}
+                  simplifiedDebts={effectiveSimplifiedDebts}
+                  bookings={bookings}
                 />
               </div>
             )}
@@ -2301,7 +2506,15 @@ export default function Home() {
             )}
 
             {activeTab === 'activity' && (
-              <ActivityLogSection events={events} onDeleteEvent={handleDeleteEvent} trip={trip} />
+              <ActivityLogSection
+                events={events}
+                onDeleteEvent={handleDeleteEvent}
+                trip={trip}
+                participants={participants}
+                netBalances={effectiveNetBalances}
+                expenses={expenses}
+                attendanceMatrix={attendanceMatrixMap[trip.id] || {}}
+              />
             )}
           </motion.div>
         </AnimatePresence>
@@ -2326,6 +2539,7 @@ export default function Home() {
         isOpen={isAddBookingOpen}
         onClose={() => setIsAddBookingOpen(false)}
         participants={participants}
+        existingBookings={bookings}
         onAddBooking={handleAddBooking}
       />
 
@@ -2339,7 +2553,12 @@ export default function Home() {
         booking={activeBookingToCancel}
         expenses={expenses}
         participants={participants}
+        destination={trip.destination}
         onConfirmCancel={handleConfirmCancelBooking}
+        onReplaceBooking={(_oldBookingId, newBooking) => {
+          handleAddBooking(newBooking);
+          triggerToast(`Replaced cancelled reservation with "${newBooking.title}"!`);
+        }}
       />
 
       {/* Edit Booking Revision Modal */}
@@ -2393,12 +2612,48 @@ export default function Home() {
         }}
         onOpenCreateTrip={() => setIsCreateTripOpen(true)}
         onOpenJoinTrip={() => setIsJoinTripOpen(true)}
+        onOpenCloneTrip={(targetTrip) => {
+          setSourceTripToClone(targetTrip);
+          setIsCloneReviewOpen(true);
+        }}
+      />
+
+      {/* Trip DNA Itinerary Skeleton Clone Review Modal */}
+      <TripCloneReviewModal
+        isOpen={isCloneReviewOpen}
+        onClose={() => {
+          setIsCloneReviewOpen(false);
+          setSourceTripToClone(null);
+        }}
+        sourceTrip={sourceTripToClone}
+        bookings={sourceTripToClone ? bookingsMap[sourceTripToClone.id] || bookings : []}
+        currentUserId={currentUserId}
+        onTripCloned={(newTrip) => {
+          setTrips((prev) => [newTrip, ...prev.filter((t) => t.id !== newTrip.id)]);
+          setActiveTripId(newTrip.id);
+          triggerToast(`Trip DNA cloned into new workspace "${newTrip.title}"!`);
+        }}
+      />
+
+      {/* Google 1-Click Native One-Tap Prompt for Dashboard */}
+      <GoogleOneTapPrompt
+        currentUser={currentUserSession}
+        onSuccess={async (sessionUser, needsProfileCompletion) => {
+          setCurrentUserSession(sessionUser);
+          await syncUserTrips(sessionUser, undefined, false);
+          if (needsProfileCompletion || !sessionUser.profileCompleted) {
+            setIsProfileCompletionOpen(true);
+          } else {
+            triggerToast(`Welcome back, ${sessionUser.name}! Signed in via Google One-Click.`);
+          }
+        }}
       />
 
       {/* Auth & Login Modal (Google OAuth & Email OTP) */}
       <AuthModal
         isOpen={isAuthOpen}
         onClose={() => setIsAuthOpen(false)}
+        defaultMode={authModalMode}
         onSwitchToCorporate={() => {
           setIsAuthOpen(false);
           setIsCorporateAuthOpen(true);
@@ -2487,6 +2742,10 @@ export default function Home() {
         onJoinTrip={() => {
           setIsMyTripsOpen(false);
           setIsJoinTripOpen(true);
+        }}
+        onOpenCloneTrip={(targetTrip) => {
+          setSourceTripToClone(targetTrip);
+          setIsCloneReviewOpen(true);
         }}
         onLogout={handleLogout}
       />
@@ -2590,6 +2849,7 @@ export default function Home() {
         isOpen={isChatExpenseOpen}
         onClose={() => setIsChatExpenseOpen(false)}
         participants={participants}
+        isCorporate={!!trip.organizationId}
         onApplyDraft={handleApplyParsedChatDraft}
       />
 
@@ -2688,54 +2948,47 @@ export default function Home() {
         onClose={() => setIsSafetyOnboardingOpen(false)}
       />
 
-      {/* Phase 2: Gogo Autonomous Conversational Trip Planner FAB */}
-      <GogoFAB onClick={() => setIsGogoInterviewOpen(true)} />
-
-      {/* Floating Trip Chat & AI Panel */}
-      <AnimatePresence>
-        {isTripChatOpen && (
-          <TripChatPanel
-            tripId={trip.id}
-            currentUserId={currentUserId}
-            currentUserName={
-              currentUserSession?.name ||
-              participants.find((p) => p.id === currentUserId)?.name ||
-              'Traveler'
-            }
-            isFloating={true}
-            onClose={() => setIsTripChatOpen(false)}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* Floating Trip Chat & AI Icon at Right Bottommost Corner */}
-      <TripChatFAB
-        isOpen={isTripChatOpen}
-        onToggle={() => setIsTripChatOpen((prev) => !prev)}
-      />
-
-      {/* Gogo Voice & Preset Interview Modal */}
-      <GogoInterviewModal
-        isOpen={isGogoInterviewOpen}
-        onClose={() => setIsGogoInterviewOpen(false)}
-        onPlanGenerated={(plan) => {
-          setGeneratedGogoPlan(plan);
-          setIsGogoPreviewOpen(true);
-        }}
-        currentUserId={currentUserId}
-      />
-
-      {/* Gogo Itinerary Blueprint Review & 1-Click Materialize Modal */}
-      <GogoPlanPreviewModal
-        isOpen={isGogoPreviewOpen}
-        onClose={() => setIsGogoPreviewOpen(false)}
-        plan={generatedGogoPlan}
+      {/* Unified Single Gogo Pop-up for Dashboard */}
+      <GogoUnifiedModal
+        isOpen={isGogoModalOpen}
+        onClose={() => setIsGogoModalOpen(false)}
+        trip={trip}
+        participants={participants}
+        expenses={expenses}
+        bookings={bookings}
+        netBalances={effectiveNetBalances}
+        simplifiedDebts={effectiveSimplifiedDebts}
+        currentUser={currentUserSession}
+        initialTab={gogoModalTab}
+        initialMessage={gogoInitialMessage}
         onTripCreated={(newTrip) => {
           setTrips((prev) => [newTrip, ...prev.filter((t) => t.id !== newTrip.id)]);
           setActiveTripId(newTrip.id);
-          triggerToast(`Trip "${newTrip.title}" materialized and saved to Neon DB!`);
+          triggerToast(`Trip "${newTrip.title}" materialized and saved!`);
         }}
-        currentUserId={currentUserId}
+        onAddBookingDirectly={(newBooking) => {
+          setBookingsMap((prev) => ({
+            ...prev,
+            [trip.id]: [...(prev[trip.id] || []), newBooking],
+          }));
+          saveBookingToNeon(newBooking).catch((err) => console.warn('Neon sync:', err));
+          triggerToast(`Added booking "${newBooking.title}" to itinerary!`);
+        }}
+        onOpenAddExpense={(prefill) => {
+          setIsGogoModalOpen(false);
+          if (prefill) {
+            setChatDraftExpense(prefill);
+          }
+          setIsSplitDrawerOpen(true);
+        }}
+      />
+
+      {/* Single, Clean Gogo Floating Button (Bottom-Right only) */}
+      <GogoSingleFAB
+        onClick={() => {
+          setGogoModalTab('chat');
+          setIsGogoModalOpen(true);
+        }}
       />
 
       {/* Phase 2: Receipt OCR Ingestion Dropzone & Camera Trigger */}
@@ -2784,6 +3037,183 @@ export default function Home() {
             prev.map((t) => (t.id === trip.id ? { ...t, organizationId: 'org-active' } : t))
           );
           triggerToast('Linked this trip to your corporate organization!');
+        }}
+      />
+
+      {/* F5.3: Passive Safety Check-In Timer Setup Modal */}
+      <CheckInSetupModal
+        isOpen={isCheckInModalOpen}
+        onClose={() => setIsCheckInModalOpen(false)}
+        tripId={trip.id}
+        participantId={currentUserId}
+        participantName={currentUser?.name}
+      />
+
+      {/* F3.3: Booking Auto-Import via Forwarded Email Review Modal */}
+      <BookingImportReviewModal
+        isOpen={isEmailImportOpen}
+        onClose={() => setIsEmailImportOpen(false)}
+        tripId={trip.id}
+        destination={trip.destination}
+        onBookingImported={(imported) => {
+          const fullBooking: Booking = {
+            id: imported.id || 'bk-' + Date.now(),
+            tripId: trip.id,
+            category: imported.category || 'general',
+            title: imported.title || 'Imported Booking',
+            vendor: imported.vendor || '',
+            startTime: imported.startTime || new Date().toISOString().slice(0, 10),
+            endTime: imported.endTime,
+            estimatedCost: imported.estimatedCost || 0,
+            actualCost: imported.actualCost || imported.estimatedCost || 0,
+            status: imported.status || 'confirmed',
+            confirmationCode: imported.confirmationCode,
+            participantIds: participants.map((p) => p.id),
+          };
+          setBookingsMap((prev) => ({
+            ...prev,
+            [trip.id]: [...(prev[trip.id] || []), fullBooking],
+          }));
+          saveBookingToNeon(fullBooking).catch((err) => console.warn('Neon sync:', err));
+          triggerToast(`Imported "${fullBooking.title}" into itinerary!`);
+        }}
+      />
+
+      {/* F2.5: Organizer Succession Modal */}
+      <OrganizerSuccessionModal
+        isOpen={isSuccessionModalOpen}
+        onClose={() => setIsSuccessionModalOpen(false)}
+        trip={trip}
+        participants={participants}
+        currentUserId={currentUserId}
+        onSuccessionCompleted={(newOrganizerId) => {
+          setTrips((prev) =>
+            prev.map((t) => (t.id === trip.id ? { ...t, organizerId: newOrganizerId } : t))
+          );
+          setParticipantsMap((prev) => ({
+            ...prev,
+            [trip.id]: (prev[trip.id] || []).map((p) => ({
+              ...p,
+              isOrganizer: p.id === newOrganizerId,
+            })),
+          }));
+          triggerToast('Trip leadership transferred successfully!');
+        }}
+      />
+
+      {/* F2.6 & F4.5: Trust & Reputation Score Modal */}
+      {selectedTrustParticipant && (
+        <TrustAndReputationModal
+          isOpen={isTrustScoreModalOpen}
+          onClose={() => setIsTrustScoreModalOpen(false)}
+          participant={selectedTrustParticipant}
+          tripsCount={trips.length}
+        />
+      )}
+
+      {/* F6.2: Post-Trip AI Retrospective Modal */}
+      <TripRetrospectiveModal
+        isOpen={isRetrospectiveOpen}
+        onClose={() => setIsRetrospectiveOpen(false)}
+        trip={trip}
+        expenses={expenses}
+        bookings={bookings}
+        participants={participants}
+      />
+
+      {/* F6.3: Dispute Mediator Mode Modal */}
+      <DisputeMediatorModal
+        isOpen={isDisputeMediatorOpen}
+        onClose={() => setIsDisputeMediatorOpen(false)}
+        expenseTitle={activeDisputeData?.expenseTitle || 'Group Shared Expense'}
+        amount={activeDisputeData?.amount || 2500}
+        claimantName={activeDisputeData?.claimantName || 'Traveler'}
+        opponentName={activeDisputeData?.opponentName || 'Organizer'}
+        claimantReason={activeDisputeData?.claimantReason || 'Disputed split allocation'}
+        onApplyResolution={(resolution) => {
+          triggerToast(`Applied dispute compromise: ${resolution}`);
+        }}
+      />
+
+      {/* F3.4: Live Squad Logistics & Rendezvous View */}
+      <LiveSquadMapView
+        isOpen={isSquadLogisticsOpen}
+        onClose={() => setIsSquadLogisticsOpen(false)}
+        destination={trip.destination}
+        participants={participants}
+        currentUserId={currentUserId}
+      />
+
+      {/* F6.6: Cross-Trip Financial Coach Insight */}
+      <FinancialCoachInsight
+        isOpen={isFinancialCoachOpen}
+        onClose={() => setIsFinancialCoachOpen(false)}
+        userName={currentUser?.name}
+      />
+
+      {/* F-M2: Pool Contribution Mode (Common Kitty / Pot) */}
+      <PoolContributionModal
+        isOpen={isPoolModalOpen}
+        onClose={() => setIsPoolModalOpen(false)}
+        trip={trip}
+        participants={participants}
+        expenses={expenses}
+        contributions={poolContributionsMap[trip.id] || []}
+        currentUser={currentUser}
+        onAddContribution={(contrib) => {
+          const newContrib: PoolContribution = {
+            ...contrib,
+            id: `pool-c-${Date.now()}`,
+            createdAt: new Date().toISOString(),
+          };
+          setPoolContributionsMap((prev) => ({
+            ...prev,
+            [trip.id]: [...(prev[trip.id] || []), newContrib],
+          }));
+          recordEvent(
+            'POOL_CONTRIBUTION',
+            `Pool contribution of ₹${newContrib.amount} recorded`,
+            {
+              contributionId: newContrib.id,
+              participantId: newContrib.participantId,
+              amount: newContrib.amount,
+              note: newContrib.note,
+            }
+          );
+          triggerToast(`Contributed ₹${newContrib.amount.toLocaleString('en-IN')} to Squad Kitty!`);
+        }}
+        onOpenAddExpenseWithPool={() => {
+          setIsPoolModalOpen(false);
+          setChatDraftExpense({
+            title: 'Common Pool Expense',
+            totalAmount: 500,
+            isPoolExpense: true,
+          } as any);
+          setIsChatExpenseOpen(true);
+        }}
+      />
+
+      {/* F-M4: Universal Itinerary DNA Importer Modal */}
+      <UniversalItineraryImporterModal
+        isOpen={isUniversalImporterOpen}
+        onClose={() => setIsUniversalImporterOpen(false)}
+        trip={trip}
+        onImportBookings={(newBookings) => {
+          setBookingsMap((prev) => ({
+            ...prev,
+            [trip.id]: [...(prev[trip.id] || []), ...newBookings],
+          }));
+
+          newBookings.forEach((b) => {
+            saveBookingToNeon(b).catch((err) => console.warn('Neon DB booking sync:', err));
+            recordEvent(
+              'BOOKING_CREATED',
+              `Imported booking "${b.title}" from Itinerary DNA`,
+              { bookingId: b.id, category: b.category, cost: b.estimatedCost }
+            );
+          });
+
+          triggerToast(`Imported ${newBookings.length} bookings into "${trip.title}"!`);
         }}
       />
 

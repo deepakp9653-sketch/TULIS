@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Trip, Participant } from '@/lib/types';
-import { X, Compass, Calendar, DollarSign, Users, Plus, CheckCircle2, ArrowRight, Copy, Key } from 'lucide-react';
+import { X, Compass, Calendar, DollarSign, Users, Plus, CheckCircle2, ArrowRight, Copy, Key, Dna } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface TripSwitcherModalProps {
@@ -14,6 +14,7 @@ interface TripSwitcherModalProps {
   onSelectTrip: (tripId: string) => void;
   onOpenCreateTrip: () => void;
   onOpenJoinTrip: () => void;
+  onOpenCloneTrip?: (trip: any) => void;
 }
 
 export const TripSwitcherModal: React.FC<TripSwitcherModalProps> = ({
@@ -25,6 +26,7 @@ export const TripSwitcherModal: React.FC<TripSwitcherModalProps> = ({
   onSelectTrip,
   onOpenCreateTrip,
   onOpenJoinTrip,
+  onOpenCloneTrip,
 }) => {
   if (!isOpen) return null;
 
@@ -153,21 +155,39 @@ export const TripSwitcherModal: React.FC<TripSwitcherModalProps> = ({
                     <span className="text-[11px] text-ink-muted">({tripParts.length} Travelers)</span>
                   </div>
 
-                  <button
-                    onClick={() => {
-                      onSelectTrip(t.id);
-                      onClose();
-                    }}
-                    disabled={isActive}
-                    className={`px-4 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                      isActive
-                        ? 'bg-surface-overlay text-ink-muted cursor-default'
-                        : 'bg-ink-primary text-surface-base hover:opacity-90 shadow-subtle'
-                    }`}
-                  >
-                    <span>{isActive ? 'Current' : 'Enter Workspace'}</span>
-                    {!isActive && <ArrowRight className="w-3.5 h-3.5" />}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {onOpenCloneTrip && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onClose();
+                          onOpenCloneTrip(t);
+                        }}
+                        className="px-2.5 py-1.5 rounded-xl border border-surface-hairline text-emerald-400 hover:bg-surface-overlay text-xs font-semibold flex items-center gap-1 transition-all"
+                        title="Clone itinerary skeleton into new trip (Trip DNA)"
+                      >
+                        <Dna className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Clone Skeleton</span>
+                      </button>
+                    )}
+
+                    <button
+                      onClick={() => {
+                        onSelectTrip(t.id);
+                        onClose();
+                      }}
+                      disabled={isActive}
+                      className={`px-4 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                        isActive
+                          ? 'bg-surface-overlay text-ink-muted cursor-default'
+                          : 'bg-ink-primary text-surface-base hover:opacity-90 shadow-subtle'
+                      }`}
+                    >
+                      <span>{isActive ? 'Current' : 'Enter Workspace'}</span>
+                      {!isActive && <ArrowRight className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
                 </div>
               </div>
             );

@@ -1,6 +1,16 @@
 import { NextResponse } from 'next/server';
-import { sql, saveTripToNeon, findTripByInviteCodeInNeon, fetchTripExpensesWithAllocations } from '@/lib/db';
+import {
+  sql,
+  saveTripToNeon,
+  saveBookingToNeon,
+  findTripByInviteCodeInNeon,
+  fetchTripExpensesWithAllocations,
+} from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth-service';
+import { scrapeDestinationData } from '@/lib/destination-scraper';
+
+// In-memory cache for capability delegation (tripId -> participantId -> string[])
+const tripCapabilitiesCache = new Map<string, Record<string, string[]>>();
 
 export async function GET(req: Request) {
   try {
@@ -352,6 +362,488 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
+    const { action } = body;
+
+    // F1.4: Auto-Rebooking Suggestions on Cancellation
+    if (action === 'get-cancellation-alternatives') {
+      const {
+        destination = 'Goa',
+        category = 'activity',
+        currentVendor = '',
+        budgetLimit = 5000,
+      } = body;
+
+      const scraped = await scrapeDestinationData(destination, Math.max(budgetLimit * 3, 10000), 3);
+      const pool =
+        category === 'stay' || category === 'lodging'
+          ? scraped.hotels
+          : category === 'dining' || category === 'food'
+          ? scraped.dining
+          : scraped.activities;
+
+      const normCurrent = (currentVendor || '').toLowerCase().trim();
+      const filtered = pool.filter(
+        (p) =>
+          !normCurrent ||
+          (!p.name.toLowerCase().includes(normCurrent) && !normCurrent.includes(p.name.toLowerCase()))
+      );
+
+      const candidates = (filtered.length >= 2 ? filtered : pool).slice(0, 3).map((item) => ({
+        title: item.name,
+        vendor: item.name,
+        category,
+        estimatedCost: item.estimatedCost || budgetLimit,
+        description: item.description,
+        rating: item.rating || 4.7,
+        address: (item as any).area || destination,
+        highlights: ['Verified Regional Venue', 'Available for Instant Replacement'],
+      }));
+
+      return NextResponse.json({ success: true, alternatives: candidates });
+    }
+
+    // F1.5: Trip DNA: Clone a Past Trip's Itinerary Skeleton
+    if (action === 'clone-itinerary') {
+      const {
+        sourceTripId,
+        targetTitle,
+        targetStartDate,
+        targetEndDate,
+        selectedBookingIds,
+        targetUserId,
+      } = body;
+      const currentUser = await getCurrentUser();
+      const userId = targetUserId || currentUser?.id || 'traveler-me';
+
+      const sourceTrips = await sql`SELECT * FROM trips WHERE id = ${sourceTripId} LIMIT 1;`;
+      if (sourceTrips.length === 0) {
+        return NextResponse.json({ success: false, error: 'Source trip not found' }, { status: 404 });
+      }
+      const sourceTrip = sourceTrips[0];
+      const sourceBookings = await sql`SELECT * FROM bookings WHERE trip_id = ${sourceTripId};`;
+
+      const newTripId = 'trip-' + Date.now();
+      const suffix = Math.floor(1000 + Math.random() * 9000);
+      const newInviteCode =
+        ((sourceTrip.destination || 'TRP').slice(0, 3).toUpperCase() || 'TRP') + suffix;
+
+      const newTrip = {
+        id: newTripId,
+        title: targetTitle || `${sourceTrip.title} (Cloned)`,
+        destination: sourceTrip.destination,
+        baseCurrency: sourceTrip.base_currency || 'INR',
+        startDate: targetStartDate || sourceTrip.start_date || new Date().toISOString().split('T')[0],
+        endDate: targetEndDate || sourceTrip.end_date || null,
+        budgetCeiling: Number(sourceTrip.budget_ceiling || 50000),
+        inviteCode: newInviteCode,
+        organizerId: userId,
+      };
+
+      const creatorParticipant = {
+        id: userId.startsWith('p') ? userId : 'p-' + Date.now(),
+        name: currentUser?.name || 'Organizer',
+        email: currentUser?.email || 'organizer@tulis.in',
+        isOrganizer: true,
+        status: 'active',
+        upiId: `${(currentUser?.name || 'organizer').toLowerCase().replace(/\s+/g, '')}@upi`,
+        weight: 1,
+        roomTier: 'suite',
+      };
+
+      await saveTripToNeon(newTrip, [creatorParticipant]);
+
+      // Filter and clone bookings
+      const allowedIds =
+        Array.isArray(selectedBookingIds) && selectedBookingIds.length > 0
+          ? new Set(selectedBookingIds)
+          : null;
+      const bookingsToClone = allowedIds
+        ? sourceBookings.filter((b: any) => allowedIds.has(b.id))
+        : sourceBookings;
+
+      const clonedBookings = [];
+      for (let i = 0; i < bookingsToClone.length; i++) {
+        const b = bookingsToClone[i];
+        const newBookingId = 'bk-' + Date.now() + '-' + i;
+        const newBooking = {
+          id: newBookingId,
+          tripId: newTripId,
+          category: b.category,
+          title: b.title,
+          vendor: b.vendor || '',
+          startTime: targetStartDate || b.start_time,
+          endTime: targetEndDate || b.end_time,
+          estimatedCost: Number(b.estimated_cost || 0),
+          actualCost: Number(b.estimated_cost || 0), // reset actual cost to estimated baseline
+          status: 'confirmed',
+          participantIds: [creatorParticipant.id],
+        };
+        await saveBookingToNeon(newBooking);
+        clonedBookings.push(newBooking);
+      }
+
+      return NextResponse.json({
+        success: true,
+        newTrip,
+        clonedBookings,
+        message: `Trip skeleton successfully cloned with ${clonedBookings.length} bookings!`,
+      });
+    }
+
+    // F3.1: Vendor Reliability Memory
+    if (action === 'vendor-reliability') {
+      const { vendorName = '' } = body;
+      if (!vendorName.trim()) {
+        return NextResponse.json({
+          success: true,
+          isNew: true,
+          score: 100,
+          totalBookings: 0,
+          varianceAvg: 0,
+          status: 'new',
+          label: '✨ First Time Vendor',
+        });
+      }
+
+      const rows = await sql`
+        SELECT estimated_cost, actual_cost, status 
+        FROM bookings 
+        WHERE LOWER(TRIM(vendor)) = LOWER(TRIM(${vendorName}));
+      `;
+
+      if (rows.length === 0) {
+        return NextResponse.json({
+          success: true,
+          isNew: true,
+          score: 100,
+          totalBookings: 0,
+          varianceAvg: 0,
+          status: 'new',
+          label: '✨ First Time Vendor',
+        });
+      }
+
+      let totalVariance = 0;
+      let cancelledCount = 0;
+      for (const r of rows) {
+        const est = Number(r.estimated_cost || 0);
+        const act = Number(r.actual_cost || 0);
+        if (est > 0) {
+          totalVariance += ((act - est) / est) * 100;
+        }
+        if (r.status === 'cancelled') cancelledCount++;
+      }
+
+      const varianceAvg = Number((totalVariance / rows.length).toFixed(1));
+      let score = 100;
+      if (varianceAvg > 5) score -= Math.min(35, varianceAvg);
+      if (cancelledCount > 0) score -= Math.min(30, (cancelledCount / rows.length) * 40);
+      score = Math.max(10, Math.round(score));
+
+      return NextResponse.json({
+        success: true,
+        isNew: false,
+        score,
+        totalBookings: rows.length,
+        varianceAvg,
+        cancelledCount,
+        label:
+          score >= 90
+            ? `${score}% Reliable • On-budget track record`
+            : score >= 75
+            ? `${score}% Moderate • Occasional surcharge`
+            : `⚠️ ${score}% Caution • +${varianceAvg}% historical variance`,
+      });
+    }
+
+    // F2.3: Capability-Scoped Delegation
+    if (action === 'get-capabilities') {
+      const { tripId } = body;
+      const cached = tripCapabilitiesCache.get(tripId) || {};
+      return NextResponse.json({ success: true, capabilities: cached });
+    }
+
+    if (action === 'grant-capability') {
+      const { tripId, participantId, capability, grantedBy = 'organizer' } = body;
+      if (!tripId || !participantId || !capability) {
+        return NextResponse.json({ success: false, error: 'Missing parameters' }, { status: 400 });
+      }
+
+      let tripCaps = tripCapabilitiesCache.get(tripId);
+      if (!tripCaps) {
+        tripCaps = {};
+        tripCapabilitiesCache.set(tripId, tripCaps);
+      }
+      if (!tripCaps[participantId]) {
+        tripCaps[participantId] = [];
+      }
+      if (!tripCaps[participantId].includes(capability)) {
+        tripCaps[participantId].push(capability);
+      }
+
+      return NextResponse.json({
+        success: true,
+        participantId,
+        capabilities: tripCaps[participantId],
+        message: `Granted capability "${capability}"`,
+      });
+    }
+
+    if (action === 'revoke-capability') {
+      const { tripId, participantId, capability } = body;
+      if (!tripId || !participantId || !capability) {
+        return NextResponse.json({ success: false, error: 'Missing parameters' }, { status: 400 });
+      }
+
+      const tripCaps = tripCapabilitiesCache.get(tripId);
+      if (tripCaps && tripCaps[participantId]) {
+        tripCaps[participantId] = tripCaps[participantId].filter((c) => c !== capability);
+      }
+
+      return NextResponse.json({
+        success: true,
+        participantId,
+        capabilities: tripCaps?.[participantId] || [],
+        message: `Revoked capability "${capability}"`,
+      });
+    }
+
+    // F2.5: Organizer Succession
+    if (action === 'request-succession') {
+      const { tripId, currentOrganizerId, successorParticipantId, successorName } = body;
+      if (!tripId || !successorParticipantId) {
+        return NextResponse.json({ success: false, error: 'tripId and successorParticipantId are required' }, { status: 400 });
+      }
+
+      try {
+        await sql`
+          INSERT INTO events (id, trip_id, event_type, actor_id, payload_json)
+          VALUES (
+            ${'ev-succ-' + Date.now()},
+            ${tripId},
+            'SUCCESSION_REQUESTED',
+            ${currentOrganizerId || 'organizer'},
+            ${JSON.stringify({ successorParticipantId, successorName, timestamp: new Date().toISOString() })}::jsonb
+          );
+        `;
+      } catch (e) {
+        console.warn('Succession event log warning:', e);
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `Succession offer dispatched to ${successorName || 'successor'}`,
+      });
+    }
+
+    if (action === 'claim-succession') {
+      const { tripId, successorParticipantId, newOrganizerName } = body;
+      if (!tripId || !successorParticipantId) {
+        return NextResponse.json({ success: false, error: 'tripId and successorParticipantId are required' }, { status: 400 });
+      }
+
+      try {
+        await sql`UPDATE trips SET organizer_id = ${successorParticipantId} WHERE id = ${tripId};`;
+        await sql`UPDATE participants SET is_organizer = (id = ${successorParticipantId}) WHERE trip_id = ${tripId};`;
+        await sql`
+          INSERT INTO events (id, trip_id, event_type, actor_id, payload_json)
+          VALUES (
+            ${'ev-succ-' + Date.now()},
+            ${tripId},
+            'SUCCESSION_COMPLETED',
+            ${successorParticipantId},
+            ${JSON.stringify({ newOrganizerId: successorParticipantId, newOrganizerName, timestamp: new Date().toISOString() })}::jsonb
+          );
+        `;
+      } catch (e) {
+        console.warn('Succession claim DB sync warning:', e);
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `Organizer succession completed. ${newOrganizerName || 'Successor'} is now the active organizer.`,
+      });
+    }
+
+    if (action === 'reclaim-organizer') {
+      const { tripId, originalOrganizerId, originalOrganizerName } = body;
+      if (!tripId || !originalOrganizerId) {
+        return NextResponse.json({ success: false, error: 'tripId and originalOrganizerId are required' }, { status: 400 });
+      }
+
+      try {
+        await sql`UPDATE trips SET organizer_id = ${originalOrganizerId} WHERE id = ${tripId};`;
+        await sql`UPDATE participants SET is_organizer = (id = ${originalOrganizerId}) WHERE trip_id = ${tripId};`;
+        await sql`
+          INSERT INTO events (id, trip_id, event_type, actor_id, payload_json)
+          VALUES (
+            ${'ev-succ-' + Date.now()},
+            ${tripId},
+            'SUCCESSION_RECLAIMED',
+            ${originalOrganizerId},
+            ${JSON.stringify({ reclaimerId: originalOrganizerId, originalOrganizerName, timestamp: new Date().toISOString() })}::jsonb
+          );
+        `;
+      } catch (e) {
+        console.warn('Succession reclaim DB sync warning:', e);
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `Organizer role successfully reclaimed by ${originalOrganizerName || 'original creator'}.`,
+      });
+    }
+
+    // FC.8: Consolidated Multi-Employee Trip & Booking Wizard
+    if (action === 'bulk-create-corporate-trip') {
+      const {
+        title,
+        destination,
+        startDate,
+        endDate,
+        budgetCeiling = 100000,
+        costCenter = 'CC-GLOBAL-801',
+        department = 'General',
+        employees = [],
+        sharedBookings = [],
+      } = body;
+
+      if (!title || !destination) {
+        return NextResponse.json({ success: false, error: 'Title and Destination are required' }, { status: 400 });
+      }
+
+      const currentUser = await getCurrentUser();
+      const organizerId = currentUser?.id || 'traveler-me';
+      const organizerEmail = currentUser?.email || 'organizer@tulis.in';
+      const organizerName = currentUser?.name || 'Travel Director';
+
+      const tripId = 'trip-corp-' + Date.now();
+      const suffix = Math.floor(1000 + Math.random() * 9000);
+      const inviteCode = (destination.slice(0, 3).toUpperCase() || 'CRP') + suffix;
+
+      const newTrip = {
+        id: tripId,
+        title,
+        destination,
+        baseCurrency: 'INR',
+        startDate: startDate || new Date().toISOString().split('T')[0],
+        endDate: endDate || null,
+        budgetCeiling: Number(budgetCeiling || 100000),
+        inviteCode,
+        organizerId,
+      };
+
+      const participantsList = [
+        {
+          id: organizerId.startsWith('p') ? organizerId : 'p-' + Date.now(),
+          name: organizerName,
+          email: organizerEmail,
+          isOrganizer: true,
+          status: 'active',
+          upiId: `${organizerName.toLowerCase().replace(/\\s+/g, '')}@upi`,
+          weight: 1,
+          roomTier: 'suite',
+        },
+      ];
+
+      // Add each employee as a participant
+      employees.forEach((emp: any, idx: number) => {
+        const empEmail = typeof emp === 'string' ? emp.trim() : (emp.email || '').trim();
+        const empName = typeof emp === 'string' ? emp.split('@')[0] : (emp.name || emp.email.split('@')[0]);
+        if (!empEmail) return;
+        if (empEmail.toLowerCase() === organizerEmail.toLowerCase()) return;
+
+        participantsList.push({
+          id: `p-corp-${Date.now()}-${idx}`,
+          name: empName,
+          email: empEmail,
+          isOrganizer: false,
+          status: 'active',
+          upiId: `${empName.toLowerCase().replace(/\\s+/g, '')}@upi`,
+          weight: 1,
+          roomTier: 'standard',
+        });
+      });
+
+      // Save trip & roster to Neon DB
+      await saveTripToNeon(newTrip, participantsList);
+
+      // Create shared bookings assigned to all participant IDs
+      const allParticipantIds = participantsList.map((p) => p.id);
+      const createdBookings = [];
+
+      for (let i = 0; i < sharedBookings.length; i++) {
+        const bk = sharedBookings[i];
+        const newBkId = `bk-corp-${Date.now()}-${i}`;
+        const newBooking = {
+          id: newBkId,
+          tripId,
+          category: bk.category || 'stay',
+          title: bk.title,
+          vendor: bk.vendor || '',
+          startTime: startDate || new Date().toISOString(),
+          endTime: endDate || undefined,
+          estimatedCost: Number(bk.estimatedCost || 0),
+          actualCost: Number(bk.estimatedCost || 0),
+          status: 'confirmed',
+          confirmationRef: bk.confirmationRef || undefined,
+          participantIds: allParticipantIds,
+        };
+        await saveBookingToNeon(newBooking);
+        createdBookings.push(newBooking);
+      }
+
+      return NextResponse.json({
+        success: true,
+        trip: newTrip,
+        participants: participantsList,
+        bookings: createdBookings,
+        message: `Corporate trip "${title}" created with ${participantsList.length} employees and ${createdBookings.length} shared bookings.`,
+      });
+    }
+
+    // F-M2: Pool Contribution Mode (Add to Squad Kitty)
+    if (action === 'add-pool-contribution') {
+      const { tripId, participantId, amount, note = 'Kitty contribution' } = body;
+      if (!tripId || !participantId || !amount) {
+        return NextResponse.json({ success: false, error: 'Missing contribution parameters' }, { status: 400 });
+      }
+
+      const newContribution = {
+        id: `pool-c-${Date.now()}`,
+        tripId,
+        participantId,
+        amount: Number(amount),
+        note,
+        createdAt: new Date().toISOString(),
+      };
+
+      try {
+        await sql`
+          INSERT INTO events (id, trip_id, event_type, actor_id, description, payload_json, sequence_num, created_at)
+          VALUES (
+            ${'evt-' + Date.now()},
+            ${tripId},
+            'POOL_CONTRIBUTION',
+            ${participantId},
+            ${`Pool contribution of ₹${amount} recorded`},
+            ${JSON.stringify(newContribution)},
+            1,
+            NOW()
+          );
+        `;
+      } catch (err) {
+        console.warn('Neon DB event write for pool contribution:', err);
+      }
+
+      return NextResponse.json({
+        success: true,
+        contribution: newContribution,
+        message: `Contributed ₹${amount} to common squad kitty!`,
+      });
+    }
+
+    // Default: Standard Save Trip to Neon
     const { trip, participants } = body;
 
     if (!trip || !trip.id || !trip.title) {

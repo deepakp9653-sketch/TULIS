@@ -2,14 +2,15 @@
 
 import React, { useState } from 'react';
 import { ReconciliationAudit } from '@/lib/types';
-import { ShieldCheck, ChevronDown, ChevronUp, CheckCircle2, AlertOctagon, Scale } from 'lucide-react';
+import { ShieldCheck, ChevronDown, ChevronUp, CheckCircle2, AlertOctagon, Scale, ExternalLink } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface ReconciliationAuditCardProps {
   audit: ReconciliationAudit;
+  tripId?: string;
 }
 
-export const ReconciliationAuditCard: React.FC<ReconciliationAuditCardProps> = ({ audit }) => {
+export const ReconciliationAuditCard: React.FC<ReconciliationAuditCardProps> = ({ audit, tripId }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
   return (
@@ -34,7 +35,7 @@ export const ReconciliationAuditCard: React.FC<ReconciliationAuditCardProps> = (
           <div>
             <div className="flex items-center gap-2">
               <h4 className="font-semibold text-sm sm:text-base text-ink-primary">
-                Reconciliation Status
+                Zero-Sum Reconciliation Invariant
               </h4>
               <span
                 className={`px-2 py-0.5 text-[10px] font-mono font-bold rounded flex items-center gap-1 uppercase tracking-wider ${
@@ -55,18 +56,33 @@ export const ReconciliationAuditCard: React.FC<ReconciliationAuditCardProps> = (
               </span>
             </div>
             <p className="text-xs text-ink-muted mt-0.5 font-mono">
-              Net Incurred: ₹{audit.netIncurred.toLocaleString('en-IN')}
+              Net Incurred Group Spend (₹{audit.netIncurred.toLocaleString('en-IN')}) = Net Participant Debt Allocations
             </p>
           </div>
         </div>
 
-        <button
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="flex items-center gap-1 text-xs font-medium text-ink-secondary hover:text-ink-primary p-1.5 rounded-lg hover:bg-surface-overlay transition cursor-pointer"
-        >
-          <span>{isExpanded ? 'Hide Proof' : 'Verify Math'}</span>
-          {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-        </button>
+        <div className="flex items-center gap-2">
+          {tripId && audit.isReconciled && (
+            <a
+              href={`/verified/${tripId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden sm:flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 transition cursor-pointer"
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>Trust Badge</span>
+              <ExternalLink className="w-3 h-3 ml-0.5 opacity-70" />
+            </a>
+          )}
+
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="flex items-center gap-1 text-xs font-medium text-ink-secondary hover:text-ink-primary p-1.5 rounded-lg hover:bg-surface-overlay transition cursor-pointer"
+          >
+            <span>{isExpanded ? 'Hide Proof' : 'Verify Math'}</span>
+            {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
+        </div>
       </div>
 
       {/* Expandable Mathematical Proof Table */}

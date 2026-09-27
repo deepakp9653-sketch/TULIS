@@ -19,11 +19,14 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { modalBackdropVariants, modalPanelVariants, formErrorShakeVariants } from '@/lib/motion';
+import ConfidenceBadge from './ui/ConfidenceBadge';
+import PolicyViolationInline from './ui/PolicyViolationInline';
 
 interface ChatExpenseModalProps {
   isOpen: boolean;
   onClose: () => void;
   participants: Participant[];
+  isCorporate?: boolean;
   onApplyDraft: (draft: ParsedChatExpense) => void;
 }
 
@@ -31,6 +34,7 @@ export const ChatExpenseModal: React.FC<ChatExpenseModalProps> = ({
   isOpen,
   onClose,
   participants,
+  isCorporate = false,
   onApplyDraft,
 }) => {
   const [inputText, setInputText] = useState('');
@@ -466,11 +470,15 @@ export const ChatExpenseModal: React.FC<ChatExpenseModalProps> = ({
                         ⚡ {aiEngineLabel}
                       </span>
                     )}
-                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                      Confidence: {(parsed.confidence * 100).toFixed(0)}%
-                    </span>
+                    <ConfidenceBadge score={parsed.confidence} label="Parsing Confidence" compact />
                   </div>
                 </div>
+
+                {parsed.confidence < 0.8 && (
+                  <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-center gap-2">
+                    <span>⚠️ Low parser confidence — please review detected amount, payer, and category.</span>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-xs">
                   <div className="p-2.5 rounded-xl bg-surface-base border border-surface-hairline">
@@ -512,6 +520,15 @@ export const ChatExpenseModal: React.FC<ChatExpenseModalProps> = ({
                     <span className="font-medium text-emerald-400">{detectedBeneficiaryNames}</span>
                   </div>
                 </div>
+
+                {/* Pre-Submit Corporate Policy Compliance Check (FC.1) */}
+                {isCorporate && (
+                  <PolicyViolationInline
+                    amount={parsed.totalAmount}
+                    category={parsed.category}
+                    isCorporate={isCorporate}
+                  />
+                )}
               </motion.div>
             )}
           </AnimatePresence>

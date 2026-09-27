@@ -35,7 +35,7 @@ export const LiquidGlassButton: React.FC<LiquidGlassButtonProps> = ({
 
   const variantClasses = {
     primary:
-      'bg-gradient-to-r from-emerald-600 to-emerald-500 text-white hover:brightness-110 shadow-[0_4px_16px_rgba(16,185,129,0.3)] font-semibold border border-emerald-400/30',
+      'bg-[#5A7863] hover:bg-[#4C6753] text-[#EBF4DD] shadow-[0_4px_16px_rgba(59,73,83,0.15)] font-semibold border border-[#5A7863]/30',
     glass:
       'backdrop-blur-md bg-surface-raised border border-surface-hairline text-ink-primary hover:bg-surface-overlay hover:border-brand-emerald/40 font-medium shadow-subtle',
     emerald:

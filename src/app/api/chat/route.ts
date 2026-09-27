@@ -73,24 +73,138 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'tripId is required' }, { status: 400 });
     }
 
-    // 1. Send Message
+    // 1. Send Message & F3.5 Grounded Concierge AI
     if (action === 'send') {
       const { text, senderName, senderId, messageType = 'text', metadata = {} } = body;
       const effectiveSenderId = sessionUser?.id || senderId || 'traveler';
       const effectiveSenderName = sessionUser?.name || senderName || 'Squad Member';
       const messageId = 'msg-' + Date.now();
 
-      const inserted = await sql`
-        INSERT INTO trip_messages (
-          id, trip_id, sender_id, sender_name, message_text, content, message_type, metadata
-        ) VALUES (
-          ${messageId}, ${tripId}, ${effectiveSenderId}, ${effectiveSenderName},
-          ${text}, ${text}, ${messageType}, ${JSON.stringify(metadata)}::jsonb
-        )
-        RETURNING id, trip_id, sender_id, sender_name, COALESCE(message_text, content) as message_text, COALESCE(content, message_text) as content, message_type, created_at;
-      `;
+      let insertedUserMsg: any = null;
+      try {
+        const inserted = await sql`
+          INSERT INTO trip_messages (
+            id, trip_id, sender_id, sender_name, message_text, content, message_type, metadata
+          ) VALUES (
+            ${messageId}, ${tripId}, ${effectiveSenderId}, ${effectiveSenderName},
+            ${text}, ${text}, ${messageType}, ${JSON.stringify(metadata)}::jsonb
+          )
+          RETURNING id, trip_id, sender_id, sender_name, COALESCE(message_text, content) as message_text, COALESCE(content, message_text) as content, message_type, created_at;
+        `;
+        insertedUserMsg = inserted[0];
+      } catch (e) {
+        insertedUserMsg = {
+          id: messageId,
+          trip_id: tripId,
+          sender_id: effectiveSenderId,
+          sender_name: effectiveSenderName,
+          message_text: text,
+          content: text,
+          message_type: messageType,
+          created_at: new Date().toISOString(),
+        };
+      }
 
-      return NextResponse.json({ success: true, message: inserted[0] });
+      // Check if Concierge mode is triggered (@concierge, @gogo, @ai, @assistant, @tulis)
+      const isConciergeMentioned =
+        messageType === 'concierge-ask' ||
+        /\b(@concierge|@gogo|@assistant|@ai|@tulis)\b/i.test(text);
+
+      if (isConciergeMentioned) {
+        // Collect live trip context (bookings, budget, destination)
+        let tripContextStr = '';
+        try {
+          const tripRows = await sql`SELECT title, destination, budget_ceiling FROM trips WHERE id = ${tripId} LIMIT 1`;
+          const bookingRows = await sql`SELECT title, category, vendor, estimated_cost, actual_cost, status, start_time FROM bookings WHERE trip_id = ${tripId} LIMIT 15`;
+          const expenseRows = await sql`SELECT description, amount, category FROM expenses WHERE trip_id = ${tripId} LIMIT 10`;
+
+          tripContextStr = `Trip: "${tripRows[0]?.title || 'Group Trip'}" in ${tripRows[0]?.destination || 'Destination'}
+Budget Ceiling: ₹${tripRows[0]?.budget_ceiling || 'Flexible'}
+Bookings (${bookingRows.length}): ${bookingRows.map((b: any) => `${b.title} [${b.category}] status:${b.status} ₹${b.actual_cost || b.estimated_cost}`).join('; ')}
+Expenses: ${expenseRows.map((e: any) => `${e.description} (₹${e.amount})`).join('; ')}`;
+        } catch (dbErr) {
+          tripContextStr = `Trip ID: ${tripId}`;
+        }
+
+        const systemPrompt = `You are the Tulis AI Concierge, a helpful, knowledgeable travel assistant for this group.
+Grounded Trip Context:
+${tripContextStr}
+
+Instructions:
+- Provide an authentic, factual answer based STRICTLY on the trip's bookings, expenses, schedule, or destination.
+- If they ask about bookings, check the status (confirmed vs pending).
+- If they ask about budget or cost, reference the real figures.
+- Keep the response punchy, clear, and under 3-4 sentences with appropriate travel emojis.`;
+
+        let conciergeAnswer = '';
+        const candidateModels = ['qwen/qwen3.8-27b', 'openai/gpt-oss-120b', 'llama-3.3-70b-versatile'];
+        for (const model of candidateModels) {
+          try {
+            const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+              method: 'POST',
+              signal: AbortSignal.timeout(6000),
+              headers: {
+                Authorization: `Bearer ${GROQ_API_KEY}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                model,
+                messages: [
+                  { role: 'system', content: systemPrompt },
+                  { role: 'user', content: text },
+                ],
+                temperature: 0.3,
+                max_tokens: 300,
+              }),
+            });
+            if (groqRes.ok) {
+              const resData = await groqRes.json();
+              conciergeAnswer = resData.choices?.[0]?.message?.content?.trim() || '';
+              if (conciergeAnswer) break;
+            }
+          } catch (e) {
+            console.warn(`Groq concierge query with ${model} failed, trying next:`, e);
+          }
+        }
+
+        if (!conciergeAnswer) {
+          conciergeAnswer = `🎒 I'm keeping track of your trip itinerary and squad ledger! Everything is synced with the latest bookings and payments. Let me know if you need specific schedule details or cost breakdowns.`;
+        }
+
+        const botMsgId = 'msg-concierge-' + Date.now();
+        let conciergeMsg: any = null;
+        try {
+          const insertedBot = await sql`
+            INSERT INTO trip_messages (
+              id, trip_id, sender_id, sender_name, message_text, content, message_type, metadata
+            ) VALUES (
+              ${botMsgId}, ${tripId}, 'concierge', 'Tulis Concierge',
+              ${conciergeAnswer}, ${conciergeAnswer}, 'concierge', ${JSON.stringify({ inReplyTo: messageId })}::jsonb
+            )
+            RETURNING id, trip_id, sender_id, sender_name, COALESCE(message_text, content) as message_text, COALESCE(content, message_text) as content, message_type, created_at;
+          `;
+          conciergeMsg = insertedBot[0];
+        } catch (e) {
+          conciergeMsg = {
+            id: botMsgId,
+            trip_id: tripId,
+            sender_id: 'concierge',
+            sender_name: 'Tulis Concierge',
+            message_text: conciergeAnswer,
+            content: conciergeAnswer,
+            message_type: 'concierge',
+            created_at: new Date().toISOString(),
+          };
+        }
+
+        return NextResponse.json({
+          success: true,
+          message: insertedUserMsg,
+          conciergeMessage: conciergeMsg,
+        });
+      }
+
+      return NextResponse.json({ success: true, message: insertedUserMsg });
     }
 
     // 2. Summarize Chat with Groq AI

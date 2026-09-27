@@ -3,9 +3,13 @@ import { sql, saveTripToNeon, saveBookingToNeon } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth-service';
 import { scrapeDestinationData, buildGeoAnchoredItinerary } from '@/lib/destination-scraper';
 import { enrichPlaceWithGoogleMaps } from '@/lib/google-maps-service';
+import { getDestinationWeatherForecast, analyzeWeatherConflicts } from '@/lib/weather-service';
 
 const GROQ_API_KEY =
   process.env.GROQ_API_KEY || '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';
+
+// In-memory votes cache for Gogo group consensus (sessionId -> activityIndex -> participantId -> 'yes' | 'no' | 'maybe')
+const gogoPlanVotesCache = new Map<string, Record<number, Record<string, string>>>();
 
 const INTERVIEW_QUESTIONS = [
   {
@@ -282,6 +286,90 @@ IMPORTANT: For every single hotel, restaurant, and venue, provide:
         );
       }
 
+      // F1.1: Budget-First Backward Planning Engine
+      // If the generated itinerary exceeds the user's explicit budget ceiling, perform iterative backward adjustments.
+      const budgetAdjustments: Array<{
+        title: string;
+        category: string;
+        previousCost: number;
+        newCost: number;
+        reason: string;
+      }> = [];
+
+      if (Array.isArray(generatedPlan.bookings) && budgetNum > 0) {
+        let currentTotal = generatedPlan.bookings.reduce(
+          (sum: number, b: any) => sum + (Number(b.estimatedCost) || 0),
+          0
+        );
+
+        if (currentTotal > budgetNum) {
+          // Pass 1: Optimize accommodations (downgrade luxury/premium stays by ~35%)
+          for (let i = 0; i < generatedPlan.bookings.length; i++) {
+            if (currentTotal <= budgetNum) break;
+            const b = generatedPlan.bookings[i];
+            if (b.category === 'stay' && (Number(b.estimatedCost) || 0) > 2000) {
+              const origCost = Number(b.estimatedCost);
+              const reduction = Math.min(origCost * 0.35, currentTotal - budgetNum);
+              const newCost = Math.max(1200, Math.round(origCost - reduction));
+              if (newCost < origCost) {
+                b.estimatedCost = newCost;
+                currentTotal -= origCost - newCost;
+                budgetAdjustments.push({
+                  title: b.title,
+                  category: 'stay',
+                  previousCost: origCost,
+                  newCost,
+                  reason: 'Optimized accommodation tier to boutique heritage stay to fit budget ceiling',
+                });
+              }
+            }
+          }
+
+          // Pass 2: If still over budget, adjust high-cost activities/dining (trim activities > ₹800)
+          if (currentTotal > budgetNum) {
+            for (let i = generatedPlan.bookings.length - 1; i >= 0; i--) {
+              if (currentTotal <= budgetNum) break;
+              const b = generatedPlan.bookings[i];
+              if (
+                (b.category === 'activity' || b.category === 'dining') &&
+                (Number(b.estimatedCost) || 0) > 800
+              ) {
+                const origCost = Number(b.estimatedCost);
+                const reduction = Math.min(origCost * 0.5, currentTotal - budgetNum);
+                const newCost = Math.max(300, Math.round(origCost - reduction));
+                if (newCost < origCost) {
+                  b.estimatedCost = newCost;
+                  currentTotal -= origCost - newCost;
+                  budgetAdjustments.push({
+                    title: b.title,
+                    category: b.category,
+                    previousCost: origCost,
+                    newCost,
+                    reason: `Refined ${b.category} from premium package to self-guided cultural access`,
+                  });
+                }
+              }
+            }
+          }
+
+          generatedPlan.estimatedBudget = currentTotal;
+          generatedPlan.budgetAdjustments = budgetAdjustments;
+        } else {
+          generatedPlan.estimatedBudget = currentTotal;
+          generatedPlan.budgetAdjustments = [];
+        }
+      }
+
+      // F1.2: Weather-Aware Replanning (Open-Meteo Integration)
+      try {
+        const dest = scrapedDossier.destination || generatedPlan.destination || 'Goa';
+        const forecasts = await getDestinationWeatherForecast(dest);
+        const weatherAnalysis = analyzeWeatherConflicts(dest, generatedPlan.bookings || [], forecasts);
+        generatedPlan.weatherSnapshot = weatherAnalysis;
+      } catch (wErr) {
+        console.warn('Weather forecast analysis warning:', wErr);
+      }
+
       // Save generated plan to session in DB
       await sql`
         UPDATE gogo_sessions
@@ -498,6 +586,73 @@ Respond ONLY with a valid JSON object matching this schema:
         success: true,
         newBooking: finalSwappedBooking,
         message: `Spot successfully swapped to ${finalSwappedBooking.title}!`,
+      });
+    }
+
+    // 5. Consensus Voting on Gogo Plan Itinerary Items (F1.3)
+    if (action === 'cast-vote') {
+      const { sessionId = 'default-session', participantId = 'user', activityIndex = 0, vote = 'yes' } = body;
+
+      let sessionVotes = gogoPlanVotesCache.get(sessionId);
+      if (!sessionVotes) {
+        sessionVotes = {};
+        gogoPlanVotesCache.set(sessionId, sessionVotes);
+      }
+      if (!sessionVotes[activityIndex]) {
+        sessionVotes[activityIndex] = {};
+      }
+      sessionVotes[activityIndex][participantId] = vote;
+
+      // Calculate aggregated tallies
+      const aggregated: Record<
+        number,
+        { yes: number; no: number; maybe: number; userVotes: Record<string, string> }
+      > = {};
+      for (const [idxStr, votesMap] of Object.entries(sessionVotes)) {
+        const idx = Number(idxStr);
+        let yes = 0,
+          no = 0,
+          maybe = 0;
+        for (const v of Object.values(votesMap)) {
+          if (v === 'yes') yes++;
+          else if (v === 'no') no++;
+          else if (v === 'maybe') maybe++;
+        }
+        aggregated[idx] = { yes, no, maybe, userVotes: votesMap };
+      }
+
+      return NextResponse.json({
+        success: true,
+        sessionId,
+        votes: aggregated,
+        message: 'Vote recorded successfully',
+      });
+    }
+
+    if (action === 'get-votes') {
+      const { sessionId = 'default-session' } = body;
+      const sessionVotes = gogoPlanVotesCache.get(sessionId) || {};
+      const aggregated: Record<
+        number,
+        { yes: number; no: number; maybe: number; userVotes: Record<string, string> }
+      > = {};
+      for (const [idxStr, votesMap] of Object.entries(sessionVotes)) {
+        const idx = Number(idxStr);
+        let yes = 0,
+          no = 0,
+          maybe = 0;
+        for (const v of Object.values(votesMap)) {
+          if (v === 'yes') yes++;
+          else if (v === 'no') no++;
+          else if (v === 'maybe') maybe++;
+        }
+        aggregated[idx] = { yes, no, maybe, userVotes: votesMap };
+      }
+
+      return NextResponse.json({
+        success: true,
+        sessionId,
+        votes: aggregated,
       });
     }
 

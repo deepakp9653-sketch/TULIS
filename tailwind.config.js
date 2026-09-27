@@ -40,6 +40,21 @@ module.exports = {
           start: 'var(--color-brand-primary-dim)',
           end: 'var(--color-brand-primary)',
         },
+        /* Editorial Forest palette — new design layer (additive) */
+        ef: {
+          'deep-forest': 'var(--ef-deep-forest)',
+          'forest-green': 'var(--ef-forest-green)',
+          'editorial-green': 'var(--ef-editorial-green)',
+          'soft-sage': 'var(--ef-soft-sage)',
+          'pale-mint': 'var(--ef-pale-mint)',
+          'tulis-lime': 'var(--ef-tulis-lime)',
+          'warm-yellow': 'var(--ef-warm-yellow)',
+          'golden-yellow': 'var(--ef-golden-yellow)',
+          'paper': 'var(--ef-paper)',
+          'warm-cream': 'var(--ef-warm-cream)',
+          'soft-navy': 'var(--ef-soft-navy)',
+          'muted-blue': 'var(--ef-muted-blue)',
+        },
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
@@ -52,6 +67,9 @@ module.exports = {
         subtle: '0 2px 8px 0 rgba(0, 0, 0, 0.06)',
         glass: '0 12px 40px 0 rgba(0, 0, 0, 0.15)',
         card: '0 20px 40px -15px rgba(0, 0, 0, 0.1)',
+        /* Editorial Forest shadows */
+        'ef-brutalist': 'var(--ef-shadow-brutalist)',
+        'ef-brutalist-sm': 'var(--ef-shadow-brutalist-sm)',
       },
     },
   },

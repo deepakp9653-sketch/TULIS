@@ -28,6 +28,8 @@ import {
   Trash2,
   Edit2,
   X,
+  Mail,
+  Globe,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { UserAvatar } from './UserAvatar';
@@ -45,8 +47,10 @@ export interface PlanAndLedgerViewProps {
   onOpenEditBooking?: (booking: Booking) => void;
   onOpenCancelBooking?: (booking: Booking) => void;
   onOpenVendors?: () => void;
+  onOpenEmailImport?: () => void;
   onDisputeAllocation?: (expenseId: string, participantId: string, reason: string) => void;
   onResolveDispute?: (expenseId: string, participantId: string) => void;
+  onOpenUniversalImporter?: () => void;
 }
 
 type ViewMode = 'timeline' | 'ledger';
@@ -63,6 +67,8 @@ export const PlanAndLedgerView: React.FC<PlanAndLedgerViewProps> = ({
   onOpenEditBooking,
   onOpenCancelBooking,
   onOpenVendors,
+  onOpenEmailImport,
+  onOpenUniversalImporter,
   onDisputeAllocation,
   onResolveDispute,
 }) => {
@@ -116,29 +122,56 @@ export const PlanAndLedgerView: React.FC<PlanAndLedgerViewProps> = ({
               Plan & Live Ledger
             </h2>
             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-              Live
+              Synchronized Hub
             </span>
           </div>
           <p className="text-xs text-ink-secondary">
-            Timeline of bookings, daily activities, live bill tracking & receipts. (₹ INR).
+            Consolidated timeline of bookings, daily activities, live bill tracking & verified receipts (₹ INR).
           </p>
         </div>
 
         {/* Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2.5">
-          {onOpenVendors && (
-            <button
-              onClick={onOpenVendors}
-              className="px-3.5 py-2 rounded-xl bg-surface-inset hover:bg-surface-elevated text-ink-secondary hover:text-ink-primary text-xs font-semibold border border-surface-hairline transition cursor-pointer flex items-center gap-1.5"
-            >
-              <Building2 className="w-3.5 h-3.5 text-brand-gold" />
-              <span>Vendors</span>
-            </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Utilities Pill Group */}
+          {(onOpenVendors || onOpenEmailImport || onOpenUniversalImporter) && (
+            <div className="flex items-center gap-1 bg-surface-inset/80 p-1 rounded-xl border border-surface-hairline">
+              {onOpenVendors && (
+                <button
+                  onClick={onOpenVendors}
+                  className="px-2.5 py-1.5 rounded-lg text-ink-secondary hover:text-ink-primary hover:bg-surface-raised text-xs font-semibold transition cursor-pointer flex items-center gap-1.5"
+                  title="Manage Multi-Vendor Accounts"
+                >
+                  <Building2 className="w-3.5 h-3.5 text-[#5A7863]" />
+                  <span>Vendors</span>
+                </button>
+              )}
+              {onOpenEmailImport && (
+                <button
+                  onClick={onOpenEmailImport}
+                  className="px-2.5 py-1.5 rounded-lg text-ink-secondary hover:text-ink-primary hover:bg-surface-raised text-xs font-semibold transition cursor-pointer flex items-center gap-1.5"
+                  title="Auto-Import Booking from Forwarded Email"
+                >
+                  <Mail className="w-3.5 h-3.5 text-[#5A7863]" />
+                  <span>Email Import</span>
+                </button>
+              )}
+              {onOpenUniversalImporter && (
+                <button
+                  onClick={onOpenUniversalImporter}
+                  className="px-2.5 py-1.5 rounded-lg text-ink-secondary hover:text-ink-primary hover:bg-surface-raised text-xs font-semibold transition cursor-pointer flex items-center gap-1.5"
+                  title="Universal Itinerary DNA Importer"
+                >
+                  <Globe className="w-3.5 h-3.5 text-[#5A7863]" />
+                  <span>Import DNA</span>
+                </button>
+              )}
+            </div>
           )}
 
+          {/* Creation Action Buttons */}
           <button
             onClick={onOpenAddExpense}
-            className="px-3.5 py-2 rounded-xl bg-surface-inset hover:bg-surface-elevated text-emerald-500 border border-emerald-500/30 text-xs font-bold transition shadow-sm cursor-pointer flex items-center gap-1.5"
+            className="px-4 py-2 rounded-xl bg-[#5A7863] hover:bg-[#4C6753] text-[#EBF4DD] text-xs font-bold transition shadow-sm cursor-pointer flex items-center gap-1.5"
           >
             <Receipt className="w-3.5 h-3.5" />
             <span>+ Log Expense</span>
@@ -146,9 +179,9 @@ export const PlanAndLedgerView: React.FC<PlanAndLedgerViewProps> = ({
 
           <button
             onClick={onOpenAddBooking}
-            className="px-4 py-2 rounded-xl bg-ink-primary text-surface-base hover:opacity-90 text-xs sm:text-sm font-bold transition shadow-subtle flex items-center gap-1.5 cursor-pointer"
+            className="px-4 py-2 rounded-xl bg-surface-inset hover:bg-surface-raised text-ink-primary border border-surface-hairline text-xs font-bold transition shadow-sm cursor-pointer flex items-center gap-1.5"
           >
-            <Plus className="w-4 h-4 stroke-[3]" />
+            <Calendar className="w-3.5 h-3.5 text-[#5A7863]" />
             <span>+ Add Activity</span>
           </button>
         </div>

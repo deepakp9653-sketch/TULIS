@@ -88,11 +88,11 @@ export const SettlementVisualizer: React.FC<SettlementVisualizerProps> = ({
               <GitCommit className="w-4 h-4 text-brand-emerald" /> Ledger Settlement Graph
             </h2>
             <span className="text-[10px] font-mono px-2 py-0.5 rounded uppercase font-semibold bg-brand-emerald/15 text-brand-emerald border border-brand-emerald/30">
-              Balanced
+              Zero-Sum Verified
             </span>
           </div>
           <p className="text-xs text-ink-muted mt-0.5">
-            Debt simplification with dynamic UPI QR Code instant settlement.
+            Automated Debt Simplification engine with dynamic UPI QR Code instant settlement.
           </p>
         </div>
 
@@ -169,7 +169,7 @@ export const SettlementVisualizer: React.FC<SettlementVisualizerProps> = ({
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-brand-emerald animate-pulse shadow-sm" />
             <span className="font-semibold text-ink-primary">
-              {isSimplified ? 'Simplified Debts (Active)' : 'All Pairwise Debts'}
+              {isSimplified ? 'Compressed Graph (Greedy Netting Active)' : 'Raw Pairwise Debts Network'}
             </span>
           </div>
 

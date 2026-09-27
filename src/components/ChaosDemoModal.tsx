@@ -84,7 +84,7 @@ export const CHAOS_STEPS: ChaosStep[] = [
   },
   {
     id: 6,
-    title: 'Balance Reconciliation Audit',
+    title: 'Zero-Sum Mathematical Invariant Audit',
     badge: 'RECONCILIATION_AUDIT',
     icon: Scale,
     actionText: 'Execute mathematical fold check: ∑(Paid) - ∑(Owed) ≡ 0.00',
@@ -94,7 +94,7 @@ export const CHAOS_STEPS: ChaosStep[] = [
   },
   {
     id: 7,
-    title: 'Smart Debt Simplification',
+    title: 'Greedy Debt Simplification Collapse',
     badge: 'SETTLEMENT_SIMPLIFIED',
     icon: Zap,
     actionText: 'Compress pairwise debt network from 8 tangled debts to ≤ 3 transactions',
@@ -149,7 +149,7 @@ export const ChaosDemoModal: React.FC<ChaosDemoModalProps> = ({
                 </span>
               </div>
               <p className="text-xs text-ink-secondary mt-0.5">
-                Proof that Tulis maintains mathematical consistency under continuous chaotic changes.
+                Proof that Tulis maintains mathematical consistency and zero-sum invariant under continuous chaotic changes.
               </p>
             </div>
           </div>

@@ -4,153 +4,139 @@
 @tailwind components;
 @tailwind utilities;
 
-html {
-  scroll-padding-top: 5.5rem;
-  scroll-behavior: smooth;
-}
-
 :root {
-  /* TULIS Brand Palette */
-  --tulis-cream: #E6E9B8;
-  --tulis-sage: #90AB8B;
-  --tulis-deep-sage: #5A7863;
-  --tulis-slate: #3B4953;
-
-  /* Neumorphic Shadow Tokens for #E6E9B8 Base Surface */
-  --tulis-neu-raised: 8px 8px 20px rgba(59, 73, 83, 0.08), -8px -8px 20px rgba(255, 255, 255, 0.85);
-  --tulis-neu-raised-sm: 4px 4px 10px rgba(59, 73, 83, 0.07), -4px -4px 10px rgba(255, 255, 255, 0.85);
-  --tulis-neu-raised-lg: 14px 14px 32px rgba(59, 73, 83, 0.09), -14px -14px 32px rgba(255, 255, 255, 0.9);
-  --tulis-neu-inset: inset 3px 3px 8px rgba(59, 73, 83, 0.09), inset -3px -3px 8px rgba(255, 255, 255, 0.85);
-  --tulis-neu-inset-sm: inset 2px 2px 5px rgba(59, 73, 83, 0.08), inset -2px -2px 5px rgba(255, 255, 255, 0.85);
-  --tulis-neu-button: 4px 4px 12px rgba(59, 73, 83, 0.09), -4px -4px 12px rgba(255, 255, 255, 0.9);
-  --tulis-neu-button-pressed: inset 2px 2px 5px rgba(59, 73, 83, 0.15), inset -2px -2px 5px rgba(255, 255, 255, 0.9);
-
-  /* Light Mode Base & Surface Tokens */
-  --color-page: #E6E9B8;
-  --color-surface-base: #E6E9B8;
-  --color-surface-raised: #EEF1C9;
+  /* Light Mode Base & Surface Tokens — Harmonized with Landing Page Palette */
+  --color-page: #EBF4DD;
+  --color-surface-base: #EBF4DD;
+  --color-surface-raised: #F4F5EE;
   --color-surface-overlay: #FFFFFF;
-  --color-surface-inset: #D9DCAB;
+  --color-surface-inset: #DDE5D0;
   --color-surface-hairline: rgba(59, 73, 83, 0.12);
 
   --color-text-primary: #3B4953;
   --color-text-secondary: #5A7863;
-  --color-text-muted: rgba(59, 73, 83, 0.65);
+  --color-text-muted: #78887B;
 
   --color-brand-primary: #5A7863;
-  --color-brand-primary-dim: #90AB8B;
+  --color-brand-primary-dim: #435C4C;
 
-  --color-ledger-surplus: #5A7863;
-  --color-ledger-surplus-bg: rgba(90, 120, 99, 0.12);
-  --color-ledger-deficit: #C05646;
-  --color-ledger-deficit-bg: rgba(192, 86, 70, 0.12);
+  --color-ledger-surplus: #2D7A5C;
+  --color-ledger-surplus-bg: rgba(45, 122, 92, 0.12);
+  --color-ledger-deficit: #C2410C;
+  --color-ledger-deficit-bg: rgba(194, 65, 12, 0.12);
 
-  --shadow-dark: rgba(59, 73, 83, 0.09);
-  --shadow-light: rgba(255, 255, 255, 0.9);
-}
+  /* Neumorphic Dual Shadows (Warm Harmonized Theme) */
+  --shadow-dark: rgba(59, 73, 83, 0.10);
+  --shadow-light: rgba(255, 255, 255, 0.90);
 
-/* TULIS Neumorphic Utility Helpers */
-.neu-raised {
-  background-color: #E6E9B8;
-  box-shadow: 8px 8px 22px rgba(59, 73, 83, 0.08), -8px -8px 22px rgba(255, 255, 255, 0.85);
-  border: 1px solid rgba(59, 73, 83, 0.08);
-}
+  --neu-flat: 6px 6px 16px rgba(59, 73, 83, 0.07), -6px -6px 16px rgba(255, 255, 255, 0.85);
+  --neu-flat-sm: 3px 3px 8px rgba(59, 73, 83, 0.06), -3px -3px 8px rgba(255, 255, 255, 0.85);
+  --neu-pressed: inset 3px 3px 6px rgba(59, 73, 83, 0.08), inset -3px -3px 6px rgba(255, 255, 255, 0.85);
+  --neu-pressed-sm: inset 2px 2px 4px rgba(59, 73, 83, 0.07), inset -2px -2px 4px rgba(255, 255, 255, 0.85);
+  --neu-glow: 0 0 15px rgba(90, 120, 99, 0.25);
 
-.neu-raised-sm {
-  background-color: #E6E9B8;
-  box-shadow: 4px 4px 12px rgba(59, 73, 83, 0.07), -4px -4px 12px rgba(255, 255, 255, 0.85);
-  border: 1px solid rgba(59, 73, 83, 0.06);
-}
+  /* ═══════════════════════════════════════════════════════════════════
+     Editorial Forest — New Design Layer (additive, does not replace above)
+     Spec: TULIS_ANTIGRAVITY_BUILD_SPEC.md Section 2.2
+     ═══════════════════════════════════════════════════════════════════ */
 
-.neu-inset {
-  background-color: #D9DCAB;
-  box-shadow: inset 3px 3px 8px rgba(59, 73, 83, 0.09), inset -3px -3px 8px rgba(255, 255, 255, 0.85);
-  border: 1px solid rgba(59, 73, 83, 0.06);
-}
+  /* Core Palette */
+  --ef-deep-forest: #12382E;
+  --ef-forest-green: #1F5A45;
+  --ef-editorial-green: #2D7A5C;
+  --ef-soft-sage: #DCEFE3;
+  --ef-pale-mint: #EAF4E9;
+  --ef-tulis-lime: #D9EE86;
+  --ef-warm-yellow: #F2D778;
+  --ef-golden-yellow: #D9B94E;
+  --ef-paper: #F4F5EE;
+  --ef-warm-cream: #FFF9E8;
+  --ef-soft-navy: #3B4953;
+  --ef-muted-blue: #5A7863;
 
-.neu-inset-sm {
-  background-color: #DEE1B0;
-  box-shadow: inset 2px 2px 5px rgba(59, 73, 83, 0.08), inset -2px -2px 5px rgba(255, 255, 255, 0.85);
-  border: 1px solid rgba(59, 73, 83, 0.05);
-}
+  /* Semantic Surface Tokens — Editorial Forest Layer */
+  --ef-surface-page: var(--ef-paper);
+  --ef-surface-card: var(--ef-warm-cream);
+  --ef-surface-accent: var(--ef-tulis-lime);
+  --ef-surface-accent-secondary: var(--ef-warm-yellow);
 
-.neu-btn {
-  background-color: #E6E9B8;
-  box-shadow: 4px 4px 10px rgba(59, 73, 83, 0.09), -4px -4px 10px rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(59, 73, 83, 0.1);
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
+  /* Semantic Text Tokens — Editorial Forest Layer */
+  --ef-text-heading: var(--ef-deep-forest);
+  --ef-text-body: var(--ef-soft-navy);
+  --ef-text-secondary: var(--ef-muted-blue);
+  --ef-text-on-accent: var(--ef-deep-forest);
 
-.neu-btn:hover {
-  box-shadow: 6px 6px 14px rgba(59, 73, 83, 0.12), -6px -6px 14px rgba(255, 255, 255, 0.95);
-  transform: translateY(-1px);
-}
-
-.neu-btn:active {
-  box-shadow: inset 2px 2px 6px rgba(59, 73, 83, 0.14), inset -2px -2px 6px rgba(255, 255, 255, 0.9);
-  transform: translateY(1px);
-}
-
-.neu-btn-primary {
-  background-color: #5A7863 !important;
-  color: #EBF4DD !important;
-  box-shadow: 4px 4px 14px rgba(59, 73, 83, 0.2), -2px -2px 8px rgba(255, 255, 255, 0.4);
-  border: 1px solid rgba(59, 73, 83, 0.2);
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.neu-btn-primary:hover {
-  background-color: #4C6753 !important;
-  box-shadow: 6px 6px 18px rgba(59, 73, 83, 0.25), -3px -3px 10px rgba(255, 255, 255, 0.5);
-  transform: translateY(-1px);
-}
-
-.neu-btn-primary:active {
-  box-shadow: inset 2px 2px 6px rgba(0, 0, 0, 0.25), inset -2px -2px 6px rgba(255, 255, 255, 0.2);
-  transform: translateY(1px);
-}
-
-/* Neo-Brutalist Personality Accents */
-.neo-accent-box {
-  border: 2px solid #3B4953;
-  box-shadow: 3px 3px 0px #3B4953;
-}
-
-.neo-accent-pill {
-  border: 1.5px solid #3B4953;
-  box-shadow: 2px 2px 0px #3B4953;
+  /* Neo-brutalist accent shadow (Section 2.3 — used sparingly on hero elements) */
+  --ef-shadow-brutalist: 4px 4px 0px var(--ef-deep-forest);
+  --ef-shadow-brutalist-sm: 2px 2px 0px var(--ef-deep-forest);
+  --ef-border-brutalist: 2px solid var(--ef-deep-forest);
 }
 
 .dark {
-  /* Dark Mode Neumorphism Base & Surface Tokens */
-  --color-page: #121620;
-  --color-surface-base: #121620;
-  --color-surface-raised: #1A202C;
-  --color-surface-overlay: #222938;
-  --color-surface-inset: #0D1018;
-  --color-surface-hairline: rgba(255, 255, 255, 0.08);
+  /* Dark Mode Base & Surface Tokens based on Landing Page Midnight Forest */
+  --color-page: #0C110E;
+  --color-surface-base: #0C110E;
+  --color-surface-raised: #151D18;
+  --color-surface-overlay: #1C2620;
+  --color-surface-inset: #0A0F0C;
+  --color-surface-hairline: rgba(255, 255, 255, 0.09);
 
-  --color-text-primary: #F8FAFC;
-  --color-text-secondary: #94A3B8;
-  --color-text-muted: #64748B;
+  --color-text-primary: #F4F5EE;
+  --color-text-secondary: #B0C4B4;
+  --color-text-muted: #7A8F7F;
 
-  --color-brand-primary: #10B981;
-  --color-brand-primary-dim: #059669;
+  --color-brand-primary: #D9EE86;
+  --color-brand-primary-dim: #5A7863;
 
-  --color-ledger-surplus: #10B981;
-  --color-ledger-surplus-bg: rgba(16, 185, 129, 0.15);
-  --color-ledger-deficit: #F43F5E;
-  --color-ledger-deficit-bg: rgba(244, 63, 94, 0.15);
+  --color-ledger-surplus: #D9EE86;
+  --color-ledger-surplus-bg: rgba(217, 238, 134, 0.15);
+  --color-ledger-deficit: #F87171;
+  --color-ledger-deficit-bg: rgba(248, 113, 113, 0.15);
 
-  /* Neumorphic Dual Shadows (Dark Theme) */
-  --shadow-dark: #080B10;
-  --shadow-light: #1E2636;
+  /* Neumorphic Dual Shadows (Dark Forest Theme) */
+  --shadow-dark: #060907;
+  --shadow-light: #1A241E;
 
-  --neu-flat: 6px 6px 16px #080B10, -6px -6px 16px #1E2636;
-  --neu-flat-sm: 3px 3px 8px #080B10, -3px -3px 8px #1E2636;
-  --neu-pressed: inset 3px 3px 6px #080B10, inset -3px -3px 6px #1E2636;
-  --neu-pressed-sm: inset 2px 2px 4px #080B10, inset -2px -2px 4px #1E2636;
-  --neu-glow: 0 0 20px rgba(16, 185, 129, 0.3);
+  --neu-flat: 6px 6px 16px #060907, -6px -6px 16px #1A241E;
+  --neu-flat-sm: 3px 3px 8px #060907, -3px -3px 8px #1A241E;
+  --neu-pressed: inset 3px 3px 6px #060907, inset -3px -3px 6px #1A241E;
+  --neu-pressed-sm: inset 2px 2px 4px #060907, inset -2px -2px 4px #1A241E;
+  --neu-glow: 0 0 20px rgba(217, 238, 134, 0.25);
+
+  /* ═══════════════════════════════════════════════════════════════════
+     Editorial Forest — Dark Mode Overrides
+     ═══════════════════════════════════════════════════════════════════ */
+
+  /* Core Palette — shifted for dark backgrounds */
+  --ef-deep-forest: #A8D5BA;
+  --ef-forest-green: #6BBF8A;
+  --ef-editorial-green: #4CAF7A;
+  --ef-soft-sage: #1A2F25;
+  --ef-pale-mint: #152A20;
+  --ef-tulis-lime: #A8C94E;
+  --ef-warm-yellow: #C9A94E;
+  --ef-golden-yellow: #B09530;
+  --ef-paper: #151A14;
+  --ef-warm-cream: #1C1E16;
+  --ef-soft-navy: #CBD5E1;
+  --ef-muted-blue: #94A3B8;
+
+  /* Semantic Surface Tokens — Dark Editorial Forest */
+  --ef-surface-page: var(--ef-paper);
+  --ef-surface-card: var(--ef-warm-cream);
+  --ef-surface-accent: #3D5A1E;
+  --ef-surface-accent-secondary: #5A4A1A;
+
+  /* Semantic Text Tokens — Dark Editorial Forest */
+  --ef-text-heading: var(--ef-deep-forest);
+  --ef-text-body: var(--ef-soft-navy);
+  --ef-text-secondary: var(--ef-muted-blue);
+  --ef-text-on-accent: #E8F5E9;
+
+  /* Neo-brutalist — lighter for dark mode visibility */
+  --ef-shadow-brutalist: 4px 4px 0px rgba(168, 213, 186, 0.3);
+  --ef-shadow-brutalist-sm: 2px 2px 0px rgba(168, 213, 186, 0.3);
+  --ef-border-brutalist: 2px solid rgba(168, 213, 186, 0.4);
 }
 
 body {
@@ -233,64 +219,48 @@ body {
   filter: brightness(1.03);
 }
 
-.dark .neu-btn:active, .dark .neu-btn-active {
+.neu-btn:active, .neu-btn-active {
   box-shadow: var(--neu-pressed-sm) !important;
   transform: translateY(0);
 }
 
-/* Primary Accent Neumorphic Button in Dark Mode */
-.dark .neu-btn-primary {
-  background: linear-gradient(135deg, #059669 0%, #10B981 100%);
-  color: #FFFFFF !important;
+/* Primary Accent Neumorphic Button — Forest Green from Landing Page */
+.neu-btn-primary {
+  background-color: #5A7863 !important;
+  color: #EBF4DD !important;
   font-weight: 700;
-  box-shadow: 4px 4px 12px rgba(16, 185, 129, 0.35), -2px -2px 8px rgba(255, 255, 255, 0.2);
+  box-shadow: 4px 4px 12px rgba(59, 73, 83, 0.2), -2px -2px 8px rgba(255, 255, 255, 0.4);
+  border: 1px solid rgba(59, 73, 83, 0.2);
   border-radius: 0.85rem;
-  transition: all 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.dark .neu-btn-primary:hover {
-  filter: brightness(1.08);
-  box-shadow: 6px 6px 16px rgba(16, 185, 129, 0.45), -2px -2px 10px rgba(255, 255, 255, 0.3);
+.neu-btn-primary:hover {
+  background-color: #4C6753 !important;
+  box-shadow: 6px 6px 16px rgba(59, 73, 83, 0.25), -3px -3px 10px rgba(255, 255, 255, 0.5);
+  transform: translateY(-1px);
 }
 
-.dark .neu-btn-primary:active {
-  box-shadow: inset 3px 3px 6px rgba(4, 120, 87, 0.6), inset -3px -3px 6px rgba(52, 211, 153, 0.4) !important;
+.neu-btn-primary:active {
+  box-shadow: inset 2px 2px 6px rgba(0, 0, 0, 0.25), inset -2px -2px 6px rgba(255, 255, 255, 0.2) !important;
+  transform: translateY(1px);
 }
 
 /* Custom glassmorphism utility for elevated floating surfaces */
 .glass-panel {
-  background-color: rgba(235, 244, 221, 0.75);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  box-shadow: 0 8px 32px rgba(59, 73, 83, 0.08);
+  background-color: var(--color-surface-overlay);
+  box-shadow: var(--neu-flat-sm);
+  border: 1px solid var(--color-surface-hairline);
 }
 
 .glass-badge {
-  background-color: rgba(255, 255, 255, 0.5);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  box-shadow: 0 2px 8px rgba(59, 73, 83, 0.04);
+  background-color: var(--color-surface-inset);
+  box-shadow: var(--neu-pressed-sm);
+  border: 1px solid var(--color-surface-hairline);
 }
 
-/* Double-Bezel (Doppelrand) Architecture */
-.doppelrand-shell {
-  background: rgba(59, 73, 83, 0.04);
-  border: 1px solid rgba(59, 73, 83, 0.12);
-  border-radius: 1.75rem;
-  padding: 0.375rem;
-  box-shadow: 8px 8px 24px rgba(59, 73, 83, 0.06), -8px -8px 24px rgba(255, 255, 255, 0.9);
-}
-
-.doppelrand-core {
-  background: #EBF4DD;
-  border-radius: calc(1.75rem - 0.375rem);
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.8), 0 1px 2px rgba(59, 73, 83, 0.04);
-  border: 1px solid rgba(59, 73, 83, 0.08);
-}
-
-.dark .neu-raised {
+/* Raised surface utility (for header cards, modals) */
+.neu-raised {
   box-shadow: var(--neu-flat-sm);
 }
 
@@ -423,6 +393,46 @@ body {
   }
 }
 
+/* TULIS Neumorphic Utility Helpers */
+.neu-raised-sm {
+  background-color: #E6E9B8;
+  box-shadow: 4px 4px 12px rgba(59, 73, 83, 0.07), -4px -4px 12px rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(59, 73, 83, 0.06);
+}
+
+.neu-inset-sm {
+  background-color: #DEE1B0;
+  box-shadow: inset 2px 2px 5px rgba(59, 73, 83, 0.08), inset -2px -2px 5px rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(59, 73, 83, 0.05);
+}
+
+/* Neo-Brutalist Personality Accents */
+.neo-accent-box {
+  border: 2px solid #3B4953;
+  box-shadow: 3px 3px 0px #3B4953;
+}
+
+.neo-accent-pill {
+  border: 1.5px solid #3B4953;
+  box-shadow: 2px 2px 0px #3B4953;
+}
+
+/* Double-Bezel (Doppelrand) Architecture */
+.doppelrand-shell {
+  background: rgba(59, 73, 83, 0.04);
+  border: 1px solid rgba(59, 73, 83, 0.12);
+  border-radius: 1.75rem;
+  padding: 0.375rem;
+  box-shadow: 8px 8px 24px rgba(59, 73, 83, 0.06), -8px -8px 24px rgba(255, 255, 255, 0.9);
+}
+
+.doppelrand-core {
+  background: #EBF4DD;
+  border-radius: calc(1.75rem - 0.375rem);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.8), 0 1px 2px rgba(59, 73, 83, 0.04);
+  border: 1px solid rgba(59, 73, 83, 0.08);
+}
+
 /* ==========================================================================
    TULIS Cinematic Hero Keyframes & Micro-Animations
    ========================================================================== */
@@ -535,4 +545,108 @@ body {
 }
 
 
+/* ═══════════════════════════════════════════════════════════════════
+   Editorial Forest — Component Utility Classes
+   New design layer for roadmap features (Section 2.3 of build spec)
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Editorial Forest Card — flat, confident, Paper/Cream surface */
+.ef-card {
+  background: var(--ef-surface-card);
+  color: var(--ef-text-body);
+  border-radius: 1.25rem;
+  border: 1px solid rgba(18, 56, 46, 0.08);
+  padding: 1.5rem;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.ef-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(18, 56, 46, 0.08);
+}
+
+/* Hero variant — neo-brutalist accent (Section 2.3: "small number of high-priority elements") */
+.ef-card-hero {
+  background: var(--ef-surface-card);
+  color: var(--ef-text-body);
+  border-radius: 1.25rem;
+  border: var(--ef-border-brutalist);
+  box-shadow: var(--ef-shadow-brutalist);
+  padding: 1.5rem;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.ef-card-hero:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0px var(--ef-deep-forest);
+}
+
+/* Color block backgrounds — large, confident fills behind key numbers/CTAs */
+.ef-block-lime {
+  background-color: var(--ef-tulis-lime);
+  color: var(--ef-deep-forest);
+}
+
+.ef-block-yellow {
+  background-color: var(--ef-warm-yellow);
+  color: var(--ef-deep-forest);
+}
+
+.ef-block-sage {
+  background-color: var(--ef-soft-sage);
+  color: var(--ef-forest-green);
+}
+
+.ef-block-cream {
+  background-color: var(--ef-warm-cream);
+  color: var(--ef-soft-navy);
+}
+
+/* Editorial heading — oversized, confident type */
+.ef-heading {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--ef-text-heading);
+  line-height: 1.1;
+}
+
+/* Editorial body text — relaxed, readable */
+.ef-body {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-weight: 400;
+  color: var(--ef-text-body);
+  line-height: 1.6;
+}
+
+/* Editorial CTA — bold, Forest green, neo-brutalist shadow on primary only */
+.ef-cta {
+  background: var(--ef-forest-green);
+  color: #FFFFFF;
+  font-weight: 700;
+  border-radius: 0.75rem;
+  border: var(--ef-border-brutalist);
+  box-shadow: var(--ef-shadow-brutalist-sm);
+  padding: 0.75rem 1.5rem;
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+.ef-cta:hover {
+  background: var(--ef-editorial-green);
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0px var(--ef-deep-forest);
+}
+
+.ef-cta:active {
+  transform: translate(0, 0);
+  box-shadow: none;
+}
+
+/* Editorial page surface — the Paper background for new screens */
+.ef-page {
+  background: var(--ef-surface-page);
+  color: var(--ef-text-body);
+  min-height: 100vh;
+}
 

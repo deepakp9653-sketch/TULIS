@@ -1,6 +1,17 @@
-import React, { useState } from 'react';
-import { Booking, Expense, RefundPolicy, Participant } from '@/lib/types';
-import { X, AlertTriangle, ShieldCheck, RefreshCw, DollarSign } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Booking, Expense, RefundPolicy, Participant, BookingCategory } from '@/lib/types';
+import {
+  X,
+  AlertTriangle,
+  ShieldCheck,
+  RefreshCw,
+  DollarSign,
+  Sparkles,
+  Star,
+  MapPin,
+  ArrowRight,
+  Loader2,
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface CancelBookingModalProps {
@@ -9,11 +20,23 @@ interface CancelBookingModalProps {
   booking: Booking | null;
   expenses: Expense[];
   participants: Participant[];
+  destination?: string;
   onConfirmCancel: (
     bookingId: string,
     policy: RefundPolicy,
     refundPercent: number,
     reason: string
+  ) => void;
+  onReplaceBooking?: (
+    oldBookingId: string,
+    replacement: {
+      category: BookingCategory;
+      title: string;
+      vendor: string;
+      estimatedCost: number;
+      actualCost: number;
+      participantIds: string[];
+    }
   ) => void;
 }
 
@@ -23,11 +46,42 @@ export const CancelBookingModal: React.FC<CancelBookingModalProps> = ({
   booking,
   expenses,
   participants,
+  destination = 'Goa',
   onConfirmCancel,
+  onReplaceBooking,
 }) => {
   const [policy, setPolicy] = useState<RefundPolicy>('full');
   const [refundPercent, setRefundPercent] = useState<number>(100);
   const [reason, setReason] = useState<string>('');
+  const [alternatives, setAlternatives] = useState<any[]>([]);
+  const [isLoadingAlternatives, setIsLoadingAlternatives] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && booking) {
+      setIsLoadingAlternatives(true);
+      fetch('/api/trips', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'get-cancellation-alternatives',
+          destination,
+          category: booking.category,
+          currentVendor: booking.vendor,
+          budgetLimit: booking.estimatedCost || 5000,
+        }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success && Array.isArray(data.alternatives)) {
+            setAlternatives(data.alternatives);
+          }
+        })
+        .catch((err) => console.warn('Fetch alternatives error:', err))
+        .finally(() => setIsLoadingAlternatives(false));
+    } else {
+      setAlternatives([]);
+    }
+  }, [isOpen, booking, destination]);
 
   if (!isOpen || !booking) return null;
 
@@ -230,6 +284,80 @@ export const CancelBookingModal: React.FC<CancelBookingModalProps> = ({
                   <span className="font-bold">₹{netLoss.toLocaleString('en-IN')}</span>
                 </div>
               )}
+            </div>
+
+            {/* F1.4: Auto-Rebooking Suggestions on Cancellation */}
+            <div className="pt-2 border-t border-surface-border space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-accent-cyan" />
+                  <span className="text-xs font-bold text-ink-primary">
+                    Alternative Venues Nearby ({alternatives.length || 0})
+                  </span>
+                </div>
+                {isLoadingAlternatives && (
+                  <span className="flex items-center gap-1 text-[11px] text-ink-muted">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    Finding spots...
+                  </span>
+                )}
+              </div>
+
+              {alternatives.length > 0 ? (
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                  {alternatives.map((alt, idx) => (
+                    <div
+                      key={idx}
+                      className="p-3 bg-surface-elevated hover:bg-surface-elevated/80 border border-surface-border rounded-xl flex items-center justify-between gap-3 text-xs transition"
+                    >
+                      <div className="space-y-0.5 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-ink-primary truncate">{alt.title}</span>
+                          <span className="flex items-center gap-0.5 text-[10px] text-amber-400 font-bold bg-amber-500/10 px-1.5 py-0.5 rounded">
+                            <Star className="w-2.5 h-2.5 fill-amber-400" />
+                            {alt.rating}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-ink-muted line-clamp-1">{alt.description}</p>
+                        <div className="text-[10px] font-mono text-emerald-400 font-bold">
+                          ₹{alt.estimatedCost?.toLocaleString('en-IN')}
+                        </div>
+                      </div>
+
+                      {onReplaceBooking && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onConfirmCancel(
+                              booking.id,
+                              policy,
+                              policy === 'full' ? 100 : policy === 'non_refundable' ? 0 : refundPercent,
+                              reason || `Cancelled booking "${booking.title}" to replace with "${alt.title}".`
+                            );
+                            onReplaceBooking(booking.id, {
+                              category: (alt.category as BookingCategory) || booking.category,
+                              title: alt.title,
+                              vendor: alt.vendor || alt.title,
+                              estimatedCost: alt.estimatedCost,
+                              actualCost: alt.estimatedCost,
+                              participantIds: booking.participantIds || [],
+                            });
+                            onClose();
+                          }}
+                          className="shrink-0 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-[11px] flex items-center gap-1 shadow-sm transition"
+                        >
+                          <span>Re-Book</span>
+                          <ArrowRight className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : !isLoadingAlternatives ? (
+                <p className="text-[11px] text-ink-muted italic">
+                  No verified alternatives currently cached for {destination}.
+                </p>
+              ) : null}
             </div>
 
             {/* Modal Actions */}

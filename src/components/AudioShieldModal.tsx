@@ -15,6 +15,7 @@ import {
   Sparkles,
   X,
 } from 'lucide-react';
+import ConfidenceBadge from './ui/ConfidenceBadge';
 
 interface AudioShieldModalProps {
   isOpen: boolean;
@@ -214,6 +215,17 @@ export const AudioShieldModal: React.FC<AudioShieldModalProps> = ({
               <p className="text-xs font-mono text-[#8B9A8C] mt-1">
                 {callState === 'ringing' ? 'Incoming call...' : formatTimer(callDuration)}
               </p>
+              {callState === 'connected' && (
+                <div className="mt-2.5 p-2 rounded-xl bg-[#1B2119] border border-[#2A322A] text-left space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase font-mono text-[#5FA97D]">Active Speech</span>
+                    <ConfidenceBadge score={0.96} label="Voice Clarity" compact />
+                  </div>
+                  <p className="text-[11px] text-[#F4F2E6] italic font-sans leading-tight">
+                    &quot;Hey! Where are you? We&apos;re waiting right outside for you in the car, please come out right now.&quot;
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 

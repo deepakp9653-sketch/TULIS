@@ -22,7 +22,12 @@ import {
   ExternalLink,
   RefreshCw,
   Clock,
+  CloudRain,
+  Sun,
+  AlertTriangle,
 } from 'lucide-react';
+import ConfidenceBadge from './ui/ConfidenceBadge';
+import { SafetyBriefPanel } from './SafetyBriefPanel';
 
 interface BookingDraft {
   title: string;
@@ -49,6 +54,35 @@ interface GeneratedPlan {
   daysCount: number;
   summary: string;
   bookings: BookingDraft[];
+  budgetAdjustments?: Array<{
+    title: string;
+    category: string;
+    previousCost: number;
+    newCost: number;
+    reason: string;
+  }>;
+  weatherSnapshot?: {
+    destination: string;
+    dailyForecast: Array<{
+      date: string;
+      weatherCode: number;
+      weatherLabel: string;
+      icon: string;
+      tempMax: number;
+      tempMin: number;
+      precipitationProbability: number;
+      isAdverse: boolean;
+      adverseReason?: string;
+    }>;
+    adverseDaysCount: number;
+    outdoorAlerts: Array<{
+      date: string;
+      bookingTitle: string;
+      weatherLabel: string;
+      precipitationProbability: number;
+      recommendedSwap: string;
+    }>;
+  };
 }
 
 interface GogoPlanPreviewModalProps {
@@ -57,6 +91,7 @@ interface GogoPlanPreviewModalProps {
   plan: GeneratedPlan | null;
   onTripCreated: (createdTrip: any) => void;
   currentUserId?: string;
+  sessionId?: string;
 }
 
 const CATEGORY_ICONS: Record<string, any> = {
@@ -83,18 +118,76 @@ export const GogoPlanPreviewModal: React.FC<GogoPlanPreviewModalProps> = ({
   plan,
   onTripCreated,
   currentUserId,
+  sessionId = 'default-gogo-session',
 }) => {
   const [currentPlan, setCurrentPlan] = useState<GeneratedPlan | null>(plan);
   const [isSaving, setIsSaving] = useState(false);
   const [successTrip, setSuccessTrip] = useState<any | null>(null);
   const [swappingIndex, setSwappingIndex] = useState<number | null>(null);
   const [swapNotification, setSwapNotification] = useState<string | null>(null);
+  const [itemVotes, setItemVotes] = useState<
+    Record<number, { yes: number; no: number; maybe: number; userVotes: Record<string, string> }>
+  >({});
+  const [userVotes, setUserVotes] = useState<Record<number, 'yes' | 'no' | 'maybe'>>({});
 
   useEffect(() => {
     if (plan) {
       setCurrentPlan(plan);
+      // Fetch consensus votes for this plan
+      fetch('/api/gogo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'get-votes', sessionId }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success && data.votes) {
+            setItemVotes(data.votes);
+            const myVotes: Record<number, 'yes' | 'no' | 'maybe'> = {};
+            const meId = currentUserId || 'traveler-me';
+            for (const [idxStr, entry] of Object.entries(data.votes as Record<string, any>)) {
+              if (entry.userVotes && entry.userVotes[meId]) {
+                myVotes[Number(idxStr)] = entry.userVotes[meId];
+              }
+            }
+            setUserVotes(myVotes);
+          }
+        })
+        .catch((err) => console.warn('Gogo votes initial fetch error:', err));
     }
-  }, [plan]);
+  }, [plan, sessionId, currentUserId]);
+
+  const handleCastVote = async (activityIndex: number, vote: 'yes' | 'no' | 'maybe') => {
+    setUserVotes((prev) => ({ ...prev, [activityIndex]: vote }));
+    try {
+      const res = await fetch('/api/gogo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'cast-vote',
+          sessionId,
+          participantId: currentUserId || 'traveler-me',
+          activityIndex,
+          vote,
+        }),
+      });
+      const data = await res.json();
+      if (data.success && data.votes) {
+        setItemVotes(data.votes);
+      }
+    } catch (err) {
+      console.warn('Gogo vote submit error:', err);
+    }
+  };
+
+  const itineraryConfidence = React.useMemo(() => {
+    if (!currentPlan?.bookings || currentPlan.bookings.length === 0) return 0.88;
+    const verifiedCount = currentPlan.bookings.filter(
+      (b) => b.isGoogleVerified || (b.rating && b.rating >= 4.0)
+    ).length;
+    const ratio = verifiedCount / currentPlan.bookings.length;
+    return Math.min(0.78 + ratio * 0.18, 0.96);
+  }, [currentPlan]);
 
   if (!isOpen || !currentPlan) return null;
 
@@ -144,6 +237,40 @@ export const GogoPlanPreviewModal: React.FC<GogoPlanPreviewModalProps> = ({
     }
   };
 
+  const handleSwapAdverseBooking = (bookingTitle: string, recommendedSwap: string) => {
+    if (!currentPlan) return;
+    const updatedBookings = currentPlan.bookings.map((b) => {
+      if (b.title.toLowerCase() === bookingTitle.toLowerCase()) {
+        return {
+          ...b,
+          title: recommendedSwap,
+          vendor: recommendedSwap,
+          description: `Indoor swap alternative to replace outdoor activity due to forecast rain/adverse weather.`,
+          highlights: ['Indoor Weather-Safe Venue', 'Curated Alternate Experience'],
+        };
+      }
+      return b;
+    });
+
+    const updatedAlerts = (currentPlan.weatherSnapshot?.outdoorAlerts || []).filter(
+      (a) => a.bookingTitle.toLowerCase() !== bookingTitle.toLowerCase()
+    );
+
+    setCurrentPlan({
+      ...currentPlan,
+      bookings: updatedBookings,
+      weatherSnapshot: currentPlan.weatherSnapshot
+        ? {
+            ...currentPlan.weatherSnapshot,
+            outdoorAlerts: updatedAlerts,
+          }
+        : undefined,
+    });
+
+    setSwapNotification(`Swapped "${bookingTitle}" with indoor-safe "${recommendedSwap}"!`);
+    setTimeout(() => setSwapNotification(null), 4000);
+  };
+
   const handleMaterializeTrip = async () => {
     setIsSaving(true);
     try {
@@ -166,7 +293,7 @@ export const GogoPlanPreviewModal: React.FC<GogoPlanPreviewModalProps> = ({
           setSuccessTrip(null);
         }, 1400);
       } else {
-        alert(data.error || 'Failed to save trip.');
+        alert(data.error || 'Failed to save trip to Neon database.');
       }
     } catch (err) {
       console.error('Failed to convert plan to trip:', err);
@@ -189,11 +316,12 @@ export const GogoPlanPreviewModal: React.FC<GogoPlanPreviewModalProps> = ({
               <Sparkles className="w-5 h-5" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="text-xl font-bold tracking-tight text-white">Gogo Blueprint Review</h2>
                 <span className="text-[10px] uppercase font-bold tracking-widest px-2 py-0.5 rounded-full bg-emerald-900/60 text-emerald-400 border border-emerald-700/40">
                   Ready to Materialize
                 </span>
+                <ConfidenceBadge score={itineraryConfidence} label="Itinerary Confidence" compact />
               </div>
               <p className="text-xs text-stone-400">Review AI-structured itinerary and booking reservations</p>
             </div>
@@ -241,6 +369,124 @@ export const GogoPlanPreviewModal: React.FC<GogoPlanPreviewModalProps> = ({
               </span>
             </div>
           </div>
+
+          {/* F1.1: Budget-First Backward Planning Optimization Callout */}
+          {currentPlan.budgetAdjustments && currentPlan.budgetAdjustments.length > 0 && (
+            <div className="p-4 rounded-2xl bg-[#142015] border border-emerald-700/50 space-y-2.5 shadow-lg shadow-emerald-950/40 animate-in fade-in duration-300">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400">
+                    <Sparkles className="w-4 h-4" />
+                  </span>
+                  <h4 className="text-xs font-bold text-emerald-300 uppercase tracking-wide">
+                    Budget-First Backward Optimization ({currentPlan.budgetAdjustments.length} Trade-offs)
+                  </h4>
+                </div>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-950/90 text-emerald-400 border border-emerald-800/60 font-semibold">
+                  Auto-Fitted to Ceiling
+                </span>
+              </div>
+              <p className="text-[11px] text-stone-300 leading-relaxed">
+                The original plan exceeded your target budget ceiling. Gogo iteratively adjusted stays and non-essential activities so your squad stays on target:
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                {currentPlan.budgetAdjustments.map((adj, aIdx) => (
+                  <div key={aIdx} className="p-2.5 rounded-xl bg-[#0D150E] border border-[#233824] space-y-1">
+                    <div className="flex items-center justify-between text-xs font-semibold text-white">
+                      <span className="truncate max-w-[170px]">{adj.title}</span>
+                      <div className="flex items-center gap-1 font-mono text-[11px]">
+                        <span className="line-through text-stone-500">₹{adj.previousCost.toLocaleString('en-IN')}</span>
+                        <span className="text-emerald-400 font-bold">₹{adj.newCost.toLocaleString('en-IN')}</span>
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-stone-400 leading-snug">{adj.reason}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* F1.2: Weather-Aware Replanning & Open-Meteo Forecast Banner */}
+          {currentPlan.weatherSnapshot && (
+            <div className="p-4 rounded-2xl bg-[#121B14] border border-[#273829] space-y-3 shadow-lg shadow-emerald-950/30">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Sun className="w-4 h-4 text-amber-400" />
+                  <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                    Open-Meteo 7-Day Forecast ({currentPlan.weatherSnapshot.destination})
+                  </h4>
+                </div>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800/40">
+                  F1.2 Weather-Aware
+                </span>
+              </div>
+
+              {/* Daily Weather Forecast Strip */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2">
+                {currentPlan.weatherSnapshot.dailyForecast?.slice(0, 7).map((wf, idx) => (
+                  <div
+                    key={idx}
+                    className={`p-2 rounded-xl border text-center space-y-0.5 ${
+                      wf.isAdverse
+                        ? 'bg-rose-950/30 border-rose-800/40 text-rose-300'
+                        : 'bg-[#162319] border-[#293B2B] text-stone-200'
+                    }`}
+                  >
+                    <span className="text-[10px] text-stone-400 font-mono block">
+                      {wf.date.slice(5)}
+                    </span>
+                    <span className="text-lg block">{wf.icon}</span>
+                    <span className="text-xs font-bold font-mono block">
+                      {wf.tempMax}° / {wf.tempMin}°
+                    </span>
+                    <span className="text-[9px] block text-stone-400 truncate">
+                      {wf.precipitationProbability > 20 ? `${wf.precipitationProbability}% rain` : wf.weatherLabel}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Adverse Weather Outdoor Alerts */}
+              {currentPlan.weatherSnapshot.outdoorAlerts && currentPlan.weatherSnapshot.outdoorAlerts.length > 0 && (
+                <div className="space-y-2 pt-2 border-t border-[#233325]">
+                  <div className="text-[10px] uppercase font-mono text-amber-400 font-semibold flex items-center gap-1.5">
+                    <CloudRain className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Adverse Weather Warning: Outdoor Activity Conflicts</span>
+                  </div>
+                  {currentPlan.weatherSnapshot.outdoorAlerts.map((alert, aIdx) => (
+                    <div
+                      key={aIdx}
+                      className="p-3 rounded-xl bg-amber-950/40 border border-amber-800/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                    >
+                      <div className="flex items-start gap-2">
+                        <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-amber-200">{alert.bookingTitle}</span>
+                            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-amber-900/60 text-amber-300">
+                              {alert.weatherLabel} ({alert.precipitationProbability}% Rain)
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-stone-300 mt-0.5">
+                            Recommended indoor replacement: <strong className="text-emerald-300">{alert.recommendedSwap}</strong>
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleSwapAdverseBooking(alert.bookingTitle, alert.recommendedSwap)}
+                        className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 self-start sm:self-auto cursor-pointer shadow-sm transition-all"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                        <span>Swap to Indoor Alternative</span>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Bookings & Activities List */}
           <div className="space-y-3">
@@ -365,6 +611,66 @@ export const GogoPlanPreviewModal: React.FC<GogoPlanPreviewModalProps> = ({
                       </div>
                     </div>
 
+                    {/* F1.3: Consensus Group Voting Row */}
+                    <div className="pt-2 border-t border-[#1C261C] flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] uppercase font-bold text-stone-400 tracking-wider mr-1">
+                          Squad Consensus:
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleCastVote(index, 'yes')}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 border transition-all ${
+                            userVotes[index] === 'yes'
+                              ? 'bg-emerald-600 text-white border-emerald-400 shadow-sm shadow-emerald-900/40'
+                              : 'bg-[#182318] text-stone-300 hover:text-white border-[#2C3E2B]'
+                          }`}
+                          title="Vote Yes - I love this!"
+                        >
+                          <span>👍</span>
+                          <span>{itemVotes[index]?.yes ?? 0}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleCastVote(index, 'maybe')}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 border transition-all ${
+                            userVotes[index] === 'maybe'
+                              ? 'bg-amber-600 text-white border-amber-400 shadow-sm shadow-amber-900/40'
+                              : 'bg-[#182318] text-stone-300 hover:text-white border-[#2C3E2B]'
+                          }`}
+                          title="Vote Maybe - Flexible / Alternative"
+                        >
+                          <span>🤔</span>
+                          <span>{itemVotes[index]?.maybe ?? 0}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleCastVote(index, 'no')}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 border transition-all ${
+                            userVotes[index] === 'no'
+                              ? 'bg-rose-700 text-white border-rose-500 shadow-sm shadow-rose-900/40'
+                              : 'bg-[#182318] text-stone-300 hover:text-white border-[#2C3E2B]'
+                          }`}
+                          title="Vote No - Prefer alternative"
+                        >
+                          <span>👎</span>
+                          <span>{itemVotes[index]?.no ?? 0}</span>
+                        </button>
+                      </div>
+
+                      {/* Contested Badge if No >= Yes and No > 0 */}
+                      {itemVotes[index] &&
+                        (itemVotes[index].no || 0) >= (itemVotes[index].yes || 0) &&
+                        (itemVotes[index].no || 0) > 0 && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-950/60 border border-amber-800/60 text-amber-300 flex items-center gap-1">
+                            <span>⚠️</span>
+                            <span>Contested Spot</span>
+                          </span>
+                        )}
+                    </div>
+
                     {/* Don't like this spot? Swap Row */}
                     <div className="pt-2 border-t border-[#1C261C] flex items-center justify-between">
                       <button
@@ -394,6 +700,9 @@ export const GogoPlanPreviewModal: React.FC<GogoPlanPreviewModalProps> = ({
                 );
               })}
             </div>
+
+            {/* F5.2: Destination Safety & Emergency Logistics Brief */}
+            <SafetyBriefPanel destination={currentPlan.destination} />
           </div>
         </div>
 
@@ -420,7 +729,7 @@ export const GogoPlanPreviewModal: React.FC<GogoPlanPreviewModalProps> = ({
             {isSaving ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Saving Trip...</span>
+                <span>Saving your trip...</span>
               </>
             ) : successTrip ? (
               <>

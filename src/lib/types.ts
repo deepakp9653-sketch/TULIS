@@ -50,7 +50,10 @@ export type EventType =
   | 'ITINERARY_CONFLICT_DISMISSED'
   | 'OFFLINE_COMMAND_SYNCED'
   | 'APPROVAL_REQUESTED'
-  | 'APPROVAL_DECIDED';
+  | 'APPROVAL_DECIDED'
+  | 'POOL_CONTRIBUTION'
+  | 'POOL_WITHDRAWAL'
+  | 'POOL_EXPENSE_DRAW';
 
 export interface Trip {
   id: string;
@@ -129,6 +132,7 @@ export interface Booking {
   cancellationReason?: string;
   refundAmount?: number;
   roomCapacity?: number;
+  confirmationCode?: string;
 }
 
 export interface ExpenseAllocation {
@@ -145,6 +149,7 @@ export interface Expense {
   tripId: string;
   bookingId?: string;
   title: string;
+  description?: string;
   totalAmount: number;
   currency: string;
   splitMethod: SplitMethod;
@@ -162,6 +167,7 @@ export interface Expense {
   receiptConfidence?: number;
   costCenter?: string;
   approvalStatus?: 'pending' | 'approved' | 'rejected';
+  isPoolExpense?: boolean;
 }
 
 export interface Payment {
@@ -309,6 +315,30 @@ export interface ParsedChatExpense {
   payerId?: string;
   category: BookingCategory;
   receiptUrl?: string;
+}
+
+// F-M2: Pool Contribution Mode (Common Kitty / Pot)
+export interface PoolContribution {
+  id: string;
+  tripId: string;
+  participantId: string;
+  amount: number;
+  note?: string;
+  createdAt: string;
+}
+
+export interface PoolState {
+  tripId: string;
+  totalContributed: number;
+  totalDrawn: number;
+  balance: number;
+  contributions: PoolContribution[];
+  contributionsByMember: Record<string, number>;
+  refundDistribution: Array<{
+    participantId: string;
+    refundAmount: number;
+    contributionRatio: number;
+  }>;
 }
 
 

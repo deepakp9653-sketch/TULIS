@@ -38,3 +38,4 @@ tsconfig.tsbuildinfo
 skills/
 *.log
 *.traineddata
+*.pdf

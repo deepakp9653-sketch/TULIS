@@ -20,7 +20,7 @@ interface ApprovalItem {
   expense_id: string;
   organization_id: string;
   requester_id: string;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'pending_tier2' | 'approved' | 'rejected';
   violation_reason: string;
   comments?: string;
   created_at: string;
@@ -95,11 +95,11 @@ export const ApprovalQueueSection: React.FC<ApprovalQueueSectionProps> = ({ orgI
   };
 
   const filteredApprovals = approvals.filter((item) => {
-    if (filter === 'pending') return item.status === 'pending';
+    if (filter === 'pending') return item.status === 'pending' || item.status === 'pending_tier2';
     return true;
   });
 
-  const pendingCount = approvals.filter((item) => item.status === 'pending').length;
+  const pendingCount = approvals.filter((item) => item.status === 'pending' || item.status === 'pending_tier2').length;
 
   if (!orgId) {
     return (
@@ -202,10 +202,12 @@ export const ApprovalQueueSection: React.FC<ApprovalQueueSectionProps> = ({ orgI
                           ? 'bg-emerald-950/60 text-emerald-400 border-emerald-800/40'
                           : item.status === 'rejected'
                           ? 'bg-rose-950/60 text-rose-400 border-rose-800/40'
+                          : item.status === 'pending_tier2'
+                          ? 'bg-purple-950/60 text-purple-300 border-purple-800/50'
                           : 'bg-amber-950/60 text-amber-400 border-amber-800/40'
                       }`}
                     >
-                      {item.status}
+                      {item.status === 'pending_tier2' ? 'Tier-2 Clearance Req.' : item.status}
                     </span>
                   </div>
                 </div>
@@ -241,7 +243,13 @@ export const ApprovalQueueSection: React.FC<ApprovalQueueSectionProps> = ({ orgI
                       ) : (
                         <Check className="w-3.5 h-3.5" />
                       )}
-                      <span>Approve Spend</span>
+                      <span>
+                        {item.status === 'pending_tier2'
+                          ? 'Clear Tier-2 Director Approval'
+                          : Number(item.expense_amount) >= 20000
+                          ? 'Approve (Routes Tier-2)'
+                          : 'Approve Spend'}
+                      </span>
                     </button>
                   </div>
                 )}

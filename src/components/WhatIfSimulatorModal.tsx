@@ -26,6 +26,9 @@ import {
   PlusCircle,
   RotateCcw,
   CheckCircle2,
+  Sparkles,
+  Loader2,
+  Bot,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -67,6 +70,68 @@ export const WhatIfSimulatorModal: React.FC<WhatIfSimulatorModalProps> = ({
   const [newExpAmount, setNewExpAmount] = useState<number>(15000);
   const [newExpSplit, setNewExpSplit] = useState<SplitMethod>('equal');
   const [newExpPayer, setNewExpPayer] = useState<string>(participants[0]?.id || '');
+
+  // F6.4 Natural-Language What-If state
+  const [nlQuery, setNlQuery] = useState('');
+  const [isParsingNl, setIsParsingNl] = useState(false);
+  const [aiParsedInfo, setAiParsedInfo] = useState<{
+    interpretedAction: string;
+    confidence: number;
+    explanation: string;
+  } | null>(null);
+
+  const handleParseNlQuery = async (queryText?: string) => {
+    const q = queryText || nlQuery;
+    if (!q.trim() || isParsingNl) return;
+    setIsParsingNl(true);
+    try {
+      const res = await fetch('/api/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'parse-whatif',
+          query: q,
+          bookings,
+          participants,
+        }),
+      });
+      const data = await res.json();
+      if (data.success && data.delta) {
+        setAiParsedInfo({
+          interpretedAction: data.interpretedAction || 'Parsed Scenario',
+          confidence: data.confidence || 0.9,
+          explanation: data.explanation || '',
+        });
+
+        // Auto-apply delta to simulation controls
+        if (data.delta.type === 'cancel_booking') {
+          setSimType('CANCEL_BOOKING');
+          if (data.delta.targetBookingId) {
+            setSelectedBookingId(data.delta.targetBookingId);
+          } else if (bookings.length > 0) {
+            setSelectedBookingId(bookings[0].id);
+          }
+          if (typeof data.delta.percent === 'number') {
+            setRefundPercent(data.delta.percent);
+          }
+        } else if (data.delta.type === 'remove_participant') {
+          setSimType('REMOVE_PARTICIPANT');
+          if (data.delta.targetParticipantId) {
+            setSelectedParticipantId(data.delta.targetParticipantId);
+          }
+        } else if (data.delta.type === 'add_expense' || data.delta.type === 'price_variance') {
+          setSimType('ADD_EXPENSE');
+          if (data.delta.title) setNewExpTitle(data.delta.title);
+          if (data.delta.amount) setNewExpAmount(data.delta.amount);
+          if (data.delta.targetParticipantId) setNewExpPayer(data.delta.targetParticipantId);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to parse what-if query:', err);
+    } finally {
+      setIsParsingNl(false);
+    }
+  };
 
   const dryRunResult = useMemo(() => {
     return simulateDryRun(participants, expenses, payments, refunds, bookings, {
@@ -125,11 +190,11 @@ export const WhatIfSimulatorModal: React.FC<WhatIfSimulatorModalProps> = ({
                   What-If Scenario Simulator (Dry-Run Engine)
                 </h3>
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-brand-gold/20 text-brand-gold border border-brand-gold/30">
-                  Preview
+                  Speculative Fold
                 </span>
               </div>
               <p className="text-xs text-ink-secondary mt-0.5">
-                Preview how changes will affect participant balances before applying them.
+                Preview exact ripple effects on participant balances before committing state changes to the immutable ledger.
               </p>
             </div>
           </div>
@@ -140,6 +205,81 @@ export const WhatIfSimulatorModal: React.FC<WhatIfSimulatorModalProps> = ({
           >
             <X className="w-5 h-5" />
           </button>
+        </div>
+
+        {/* F6.4 Natural-Language Scenario Query Bar */}
+        <div className="p-4 bg-gradient-to-r from-amber-500/10 via-[#182218] to-emerald-950/30 border-b border-surface-hairline space-y-2.5">
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Sparkles className="w-4 h-4 text-brand-gold absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={nlQuery}
+                onChange={(e) => setNlQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleParseNlQuery();
+                }}
+                placeholder="Ask in plain English: 'What if we cancel the villa?' or 'What if food costs +25%?'"
+                className="w-full bg-surface-base border border-surface-hairline rounded-xl pl-9 pr-3 py-2 text-xs text-ink-primary focus:border-brand-gold outline-none placeholder:text-ink-muted"
+                disabled={isParsingNl}
+              />
+            </div>
+            <button
+              onClick={() => handleParseNlQuery()}
+              disabled={!nlQuery.trim() || isParsingNl}
+              className="px-4 py-2 rounded-xl bg-brand-gold hover:bg-amber-400 text-black font-bold text-xs flex items-center gap-1.5 transition-all shadow-subtle cursor-pointer disabled:opacity-50"
+            >
+              {isParsingNl ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Bot className="w-3.5 h-3.5" />
+              )}
+              <span>AI Parse</span>
+            </button>
+          </div>
+
+          {/* Quick Scenario Chips */}
+          <div className="flex items-center gap-1.5 overflow-x-auto text-[11px]">
+            <span className="text-ink-muted font-medium shrink-0">Try:</span>
+            {[
+              'What if we cancel the highest booking?',
+              'What if dinner expenses go up by 20%?',
+              'What if one squad member leaves early?',
+            ].map((chip, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => {
+                  setNlQuery(chip);
+                  handleParseNlQuery(chip);
+                }}
+                className="px-2.5 py-1 rounded-lg bg-surface-inset hover:bg-surface-raised border border-surface-hairline text-ink-secondary hover:text-ink-primary whitespace-nowrap transition-colors cursor-pointer"
+              >
+                {chip}
+              </button>
+            ))}
+          </div>
+
+          {/* Interpreted Action Confirmation Banner */}
+          {aiParsedInfo && (
+            <div className="p-2.5 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-between text-xs text-amber-200">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>
+                  <strong>AI Interpreted:</strong> {aiParsedInfo.interpretedAction}
+                </span>
+                <span className="text-[10px] px-1.5 py-0.2 rounded bg-black/40 text-emerald-400 font-mono">
+                  {Math.round(aiParsedInfo.confidence * 100)}% match
+                </span>
+              </div>
+              <button
+                onClick={() => setAiParsedInfo(null)}
+                className="text-stone-400 hover:text-white p-0.5"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Simulation Type Selector Tabs */}
@@ -313,7 +453,7 @@ export const WhatIfSimulatorModal: React.FC<WhatIfSimulatorModalProps> = ({
             </div>
             <div className="flex items-center gap-3">
               <span className="font-mono text-emerald-400">
-                Discrepancy Δ = ₹{dryRunResult.projectedAudit.discrepancy.toFixed(2)}
+                Zero-Sum Discrepancy Δ = ₹{dryRunResult.projectedAudit.discrepancy.toFixed(2)}
               </span>
               <span className="font-numeric font-bold text-brand-gold">
                 {dryRunResult.newSimplifiedDebts.length} Simplified Transactions

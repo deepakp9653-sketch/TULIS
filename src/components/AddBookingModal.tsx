@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
-import { BookingCategory, Participant } from '@/lib/types';
-import { X, Calendar, DollarSign, Tag, MapPin } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { BookingCategory, Participant, Booking } from '@/lib/types';
+import { X, Calendar, DollarSign, Tag, MapPin, ShieldCheck } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { UserAvatar } from './UserAvatar';
 
@@ -10,6 +10,7 @@ interface AddBookingModalProps {
   isOpen: boolean;
   onClose: () => void;
   participants: Participant[];
+  existingBookings?: Booking[];
   onAddBooking: (bookingData: {
     category: BookingCategory;
     title: string;
@@ -24,6 +25,7 @@ export const AddBookingModal: React.FC<AddBookingModalProps> = ({
   isOpen,
   onClose,
   participants,
+  existingBookings = [],
   onAddBooking,
 }) => {
   const [title, setTitle] = useState('');
@@ -34,6 +36,77 @@ export const AddBookingModal: React.FC<AddBookingModalProps> = ({
   const [selectedParticipantIds, setSelectedParticipantIds] = useState<string[]>(
     participants.map((p) => p.id)
   );
+  const [vendorMemory, setVendorMemory] = useState<{
+    score: number;
+    totalBookings: number;
+    varianceAvg: number;
+    label: string;
+    isNew: boolean;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!vendor.trim()) {
+      setVendorMemory(null);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      const norm = vendor.trim().toLowerCase();
+      const matched = (existingBookings || []).filter(
+        (b) => b.vendor && (b.vendor.toLowerCase().includes(norm) || norm.includes(b.vendor.toLowerCase()))
+      );
+
+      if (matched.length > 0) {
+        let totVar = 0;
+        let canc = 0;
+        matched.forEach((b) => {
+          const est = Number(b.estimatedCost || 0);
+          const act = Number(b.actualCost || 0);
+          if (est > 0) totVar += ((act - est) / est) * 100;
+          if (b.status === 'cancelled') canc++;
+        });
+        const varianceAvg = Number((totVar / matched.length).toFixed(1));
+        let score = 100;
+        if (varianceAvg > 5) score -= Math.min(35, varianceAvg);
+        if (canc > 0) score -= Math.min(30, (canc / matched.length) * 40);
+        score = Math.max(10, Math.round(score));
+
+        setVendorMemory({
+          score,
+          totalBookings: matched.length,
+          varianceAvg,
+          isNew: false,
+          label:
+            score >= 90
+              ? `${score}% Reliable • On-budget track record`
+              : score >= 75
+              ? `${score}% Moderate • Occasional surcharge`
+              : `⚠️ ${score}% Caution • +${varianceAvg}% historical variance`,
+        });
+      } else {
+        fetch('/api/trips', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'vendor-reliability', vendorName: vendor }),
+        })
+          .then((res) => res.json())
+          .then((data) => {
+            if (data.success) {
+              setVendorMemory({
+                score: data.score,
+                totalBookings: data.totalBookings,
+                varianceAvg: data.varianceAvg,
+                isNew: data.isNew,
+                label: data.label,
+              });
+            }
+          })
+          .catch(() => {});
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [vendor, existingBookings]);
 
   if (!isOpen) return null;
 
@@ -98,6 +171,27 @@ export const AddBookingModal: React.FC<AddBookingModalProps> = ({
                 placeholder="e.g. Odakyu Electric Railway"
                 className="w-full bg-surface-base border border-surface-hairline rounded-xl px-3 py-2.5 text-ink-primary focus:border-emerald-500 outline-none"
               />
+              {vendor.trim().length > 1 && vendorMemory && (
+                <div
+                  className={`mt-1.5 p-2 rounded-xl text-[11px] border flex items-center justify-between transition-all ${
+                    vendorMemory.isNew
+                      ? 'bg-surface-elevated border-surface-border text-ink-muted'
+                      : vendorMemory.score >= 85
+                      ? 'bg-emerald-950/60 border-emerald-800/60 text-emerald-300'
+                      : 'bg-amber-950/60 border-amber-800/60 text-amber-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+                    <span className="font-semibold">{vendorMemory.label}</span>
+                  </div>
+                  {!vendorMemory.isNew && (
+                    <span className="font-mono text-[10px] text-ink-muted">
+                      {vendorMemory.totalBookings} past booking{vendorMemory.totalBookings > 1 ? 's' : ''}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
 
             <div>
@@ -160,6 +254,19 @@ export const AddBookingModal: React.FC<AddBookingModalProps> = ({
                 );
               })}
             </div>
+
+            {/* F5.4: Buddy Pairing for Split-Off Activities Nudge */}
+            {selectedParticipantIds.length > 0 && selectedParticipantIds.length < participants.length && (
+              <div className="p-3 rounded-xl bg-amber-950/20 border border-amber-800/40 text-xs text-amber-200/90 space-y-1">
+                <div className="flex items-center gap-1.5 font-bold text-amber-300">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>F5.4 Split-Off Activity Buddy Nudge</span>
+                </div>
+                <p className="text-[11px] text-stone-300">
+                  Only {selectedParticipantIds.length} of {participants.length} squad members are attending. Consider agreeing on a check-in buddy from the remaining squad to verify safe return.
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="card-actions pt-3 border-t border-surface-hairline">

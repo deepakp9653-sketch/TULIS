@@ -6,6 +6,7 @@ import { calculateSplits, suggestSplitMethod } from '@/lib/ledger-engine';
 import { X, Calculator, ShieldAlert, CheckCircle2, DollarSign, Upload, FileText, Image as ImageIcon, Sparkles, Lightbulb, Calendar, Clock } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { UserAvatar } from './UserAvatar';
+import PolicyViolationInline from './ui/PolicyViolationInline';
 
 interface DynamicSplitDrawerProps {
   isOpen: boolean;
@@ -688,6 +689,15 @@ export const DynamicSplitDrawer: React.FC<DynamicSplitDrawerProps> = ({
                 : `Payers Diff: ₹${Math.abs(totalAmount - totalPaidSum).toFixed(2)}`}
             </span>
           </div>
+
+          {/* Real-Time Corporate Policy Compliance Check (FC.1) */}
+          {isCorporate && (
+            <PolicyViolationInline
+              amount={totalAmount}
+              category={category}
+              isCorporate={isCorporate}
+            />
+          )}
 
           <button
             onClick={handleSubmit}
