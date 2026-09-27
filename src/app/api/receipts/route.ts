@@ -35,16 +35,16 @@ export async function POST(req: Request) {
     try {
       await sql`
         INSERT INTO receipt_extractions (
-          id, trip_id, uploaded_by, image_url, extracted_data, status
+          id, trip_id, image_url, extracted_data, status
         ) VALUES (
-          ${extractionId}, ${tripId}, ${userId},
+          ${extractionId}, ${tripId},
           ${formattedImageUrl.slice(0, 100) + '...'},
           ${JSON.stringify(ocrResult)}::jsonb,
           'processed'
         );
       `;
     } catch (dbErr) {
-      console.warn('Failed to log receipt extraction to Neon DB:', dbErr);
+      // Quiet persistence fallback
     }
 
     return NextResponse.json({

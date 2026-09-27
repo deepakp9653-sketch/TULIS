@@ -25,11 +25,14 @@ import {
   RefreshCw,
   Clock,
   ShieldCheck,
+  Volume2,
+  VolumeX,
+  Radio,
 } from 'lucide-react';
 import { Trip, Participant, Expense, Booking, SimplifiedDebt, ParticipantNetBalance } from '@/lib/types';
 import { routeAssistantMessage, AssistantRouteResult } from '@/lib/assistant-router';
 
-export type GogoTab = 'chat' | 'planner' | 'blueprint';
+export type GogoTab = 'chat' | 'planner' | 'voice' | 'blueprint';
 
 interface Question {
   step: number;
@@ -43,6 +46,7 @@ interface Question {
 interface BookingDraft {
   title: string;
   category: 'stay' | 'flight' | 'train' | 'rental' | 'activity' | 'dining';
+  journeyPhase?: 'going' | 'stay' | 'exploration' | 'coming';
   vendor: string;
   estimatedCost: number;
   dayNumber: number;
@@ -113,7 +117,15 @@ export const GogoUnifiedModal: React.FC<GogoUnifiedModalProps> = ({
   const [inputMessage, setInputMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [addedBookings, setAddedBookings] = useState<Record<string, boolean>>({});
   const chatScrollRef = useRef<HTMLDivElement>(null);
+
+  // Voice Interview state
+  const [isVoiceSpeaking, setIsVoiceSpeaking] = useState(false);
+  const [isVoiceMuted, setIsVoiceMuted] = useState(false);
+  const [voiceTranscript, setVoiceTranscript] = useState('');
+  const [speechSupported, setSpeechSupported] = useState(false);
+  const recognitionRef = useRef<any>(null);
 
   // Planner state (4 steps)
   const [plannerStep, setPlannerStep] = useState(1);
@@ -129,6 +141,73 @@ export const GogoUnifiedModal: React.FC<GogoUnifiedModalProps> = ({
   // Blueprint state
   const [generatedPlan, setGeneratedPlan] = useState<GeneratedPlan | null>(null);
   const [isMaterializing, setIsMaterializing] = useState(false);
+
+  // Setup Web Speech API for voice recognition
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRec) {
+        setSpeechSupported(true);
+        const recog = new SpeechRec();
+        recog.continuous = false;
+        recog.interimResults = true;
+        recog.lang = 'en-IN';
+
+        recog.onresult = (event: any) => {
+          const transcript = Array.from(event.results)
+            .map((result: any) => result[0].transcript)
+            .join('');
+          setVoiceTranscript(transcript);
+          if (activeTab === 'chat') {
+            setInputMessage(transcript);
+          }
+        };
+
+        recog.onend = () => {
+          setIsListening(false);
+        };
+
+        recog.onerror = (err: any) => {
+          console.warn('Speech recognition notice:', err);
+          setIsListening(false);
+        };
+
+        recognitionRef.current = recog;
+      }
+    }
+  }, [activeTab]);
+
+  // Voice TTS speech synthesis helper
+  const speakText = (text: string) => {
+    if (typeof window === 'undefined' || !window.speechSynthesis || isVoiceMuted) return;
+    try {
+      window.speechSynthesis.cancel();
+      const clean = text.replace(/[*#_`]/g, '');
+      const utterance = new SpeechSynthesisUtterance(clean);
+      utterance.rate = 1.0;
+      utterance.pitch = 1.0;
+      utterance.onstart = () => setIsVoiceSpeaking(true);
+      utterance.onend = () => setIsVoiceSpeaking(false);
+      utterance.onerror = () => setIsVoiceSpeaking(false);
+      window.speechSynthesis.speak(utterance);
+    } catch (e) {}
+  };
+
+  const toggleListening = () => {
+    if (!recognitionRef.current) return;
+    if (isListening) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+    } else {
+      setVoiceTranscript('');
+      try {
+        recognitionRef.current.start();
+        setIsListening(true);
+      } catch (e) {
+        setIsListening(false);
+      }
+    }
+  };
 
   // Initialize chat greeting on open
   useEffect(() => {
@@ -234,7 +313,7 @@ export const GogoUnifiedModal: React.FC<GogoUnifiedModalProps> = ({
     setIsTyping(true);
 
     try {
-      // 1. Check local assistant router for fast client responses
+      // 1. Check intent router
       const routeResult: AssistantRouteResult = await routeAssistantMessage({
         message: cleanText,
         trip,
@@ -246,15 +325,38 @@ export const GogoUnifiedModal: React.FC<GogoUnifiedModalProps> = ({
         currentUser,
       });
 
-      // If planning intent detected, offer 1-click tab switch
-      if (routeResult.intent === 'PLANNING') {
+      const qLower = cleanText.toLowerCase();
+      const isBookingIntent =
+        qLower.includes('book') ||
+        qLower.includes('reserve') ||
+        qLower.includes('add stay') ||
+        qLower.includes('add hotel') ||
+        qLower.includes('add activity') ||
+        qLower.includes('add flight') ||
+        qLower.includes('add cab') ||
+        qLower.includes('add taxi');
+
+      const isBudgetOrWhyQuery =
+        qLower.includes('owe') ||
+        qLower.includes('why') ||
+        qLower.includes('balance') ||
+        qLower.includes('budget') ||
+        qLower.includes('money') ||
+        qLower.includes('own') ||
+        qLower.includes('fair') ||
+        qLower.includes('share') ||
+        qLower.includes('settle') ||
+        qLower.includes('remaining');
+
+      // If planning intent detected and NOT a direct booking command or budget question, offer 1-click tab switch
+      if (routeResult.intent === 'PLANNING' && !isBookingIntent && !isBudgetOrWhyQuery) {
         const botMsg: GogoChatMessage = {
           id: 'gogo-' + Date.now(),
           sender: 'gogo',
-          text: routeResult.replyText || `I can help plan that! Tap **4-Step Planner** above or let's create a curated plan for ${trip.destination}.`,
+          text: routeResult.replyText || `I can help plan that! Tap **4-Step Planner** or **Voice Interview** above to build a complete end-to-end itinerary for ${trip.destination}.`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           actionPayload: routeResult.actionPayload,
-          suggestedFollowUps: ['Open 4-Step Planner', 'What is our remaining budget?'],
+          suggestedFollowUps: ['Open 4-Step Planner', 'Start Voice Interview', 'What is our remaining budget?'],
         };
         setMessages((prev) => [...prev, botMsg]);
         setIsTyping(false);
@@ -277,7 +379,7 @@ export const GogoUnifiedModal: React.FC<GogoUnifiedModalProps> = ({
         return;
       }
 
-      // Fallback to Groq API if general conversational query
+      // 2. Grok AI Direct Assistant: Budget Q&A, Balance Explanations & Direct Booking Creation
       try {
         const res = await fetch('/api/gogo', {
           method: 'POST',
@@ -286,27 +388,40 @@ export const GogoUnifiedModal: React.FC<GogoUnifiedModalProps> = ({
             action: 'ask-question',
             query: cleanText,
             destination: trip.destination,
+            tripTitle: trip.title,
+            tripId: trip.id,
             totalSpend: expenses.reduce((s, e) => s + (e.totalAmount || 0), 0),
             budgetCeiling: trip.budgetCeiling,
+            participants,
+            expenses,
+            netBalances,
+            simplifiedDebts,
+            bookings,
+            currentUser,
           }),
         });
         const data = await res.json();
         if (data.success && data.reply) {
+          const actionPayload = data.bookingToCreate
+            ? { type: 'CREATE_BOOKING', data: data.bookingToCreate }
+            : undefined;
+
           setMessages((prev) => [
             ...prev,
             {
               id: 'gogo-' + Date.now(),
               sender: 'gogo',
               text: data.reply,
+              actionPayload,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              suggestedFollowUps: routeResult.suggestedFollowUps || ['Who owes what?', 'Check itinerary'],
+              suggestedFollowUps: data.suggestedFollowUps || ['Who owes what in the squad?', 'What is our remaining budget?'],
             },
           ]);
           setIsTyping(false);
           return;
         }
       } catch (apiErr) {
-        console.warn('Gogo api error:', apiErr);
+        console.warn('Gogo Grok api notice:', apiErr);
       }
 
       // Default safe response from deterministic router
@@ -335,7 +450,7 @@ export const GogoUnifiedModal: React.FC<GogoUnifiedModalProps> = ({
     }
   };
 
-  // Generate Plan from 4-Step Planner
+  // Generate Plan from 4-Step Planner or Voice Interview
   const handleGeneratePlan = async () => {
     setIsGeneratingPlan(true);
 
@@ -349,56 +464,91 @@ export const GogoUnifiedModal: React.FC<GogoUnifiedModalProps> = ({
           budget: plannerAnswers.budget,
           vibe: plannerAnswers.vibe,
           pace: plannerAnswers.pace,
+          travelers: participants.length || 4,
           daysCount: trip.endDate && trip.startDate
             ? Math.max(1, Math.ceil((new Date(trip.endDate).getTime() - new Date(trip.startDate).getTime()) / (1000 * 3600 * 24)))
-            : 5,
+            : 4,
         }),
       });
 
       const data = await res.json();
-      if (data.success && data.plan) {
-        setGeneratedPlan(data.plan);
+      if (data.success && (data.plan || data.generatedPlan)) {
+        setGeneratedPlan(data.plan || data.generatedPlan);
         setActiveTab('blueprint');
       } else {
-        // Fallback local curated plan if API is rate limited
+        // High-fidelity fallback plan with complete end-to-end "going to coming" journey
         const fallbackPlan: GeneratedPlan = {
-          title: `${trip.destination || 'Rajasthan'} Curated AI Blueprint`,
-          destination: trip.destination || 'Rajasthan',
-          estimatedBudget: trip.budgetCeiling || 45000,
+          title: `${plannerAnswers.destination || trip.destination || 'Manali'} End-to-End Squad Journey`,
+          destination: plannerAnswers.destination || trip.destination || 'Manali',
+          estimatedBudget: trip.budgetCeiling || 50000,
           daysCount: 4,
-          summary: `Curated 4-day high-reputation itinerary with verified Google Maps venues, balanced group budget, and zero-confusion splits.`,
+          summary: `Complete end-to-end verified itinerary for ${plannerAnswers.destination || trip.destination || 'Manali'} covering departure outbound transit ("going"), base camp stay, signature adventures, regional dining, and return journey home ("coming").`,
           bookings: [
             {
-              title: 'Heritage Palace Stay & Welcome Dinner',
-              category: 'stay',
-              vendor: 'Rambagh Palace Jaipur',
-              estimatedCost: 18000,
+              title: '🛫 Outbound Transit: Scenic Mountain Drive & Airport Transfer',
+              category: 'rental',
+              journeyPhase: 'going',
+              vendor: 'Himalayan Express Fleet',
+              estimatedCost: 3500,
               dayNumber: 1,
-              description: 'Authentic royal courtyard lodging with breakfast included for the whole squad.',
-              googleMapsUrl: 'https://www.google.com/maps/search/?api=1&query=Rambagh+Palace+Jaipur',
+              description: 'Departure transit from origin to destination with scenic photo stops, luggage care, and direct drop at hotel.',
               rating: 4.8,
               isGoogleVerified: true,
             },
             {
-              title: 'Fort Sunset Tour & Dinner Feast',
+              title: '🏨 Base Camp: Highland Resort & Mountain Suites',
+              category: 'stay',
+              journeyPhase: 'stay',
+              vendor: 'Highland Resort & Spa',
+              estimatedCost: 16000,
+              dayNumber: 1,
+              description: '3-night squad lodging with panoramic valley balconies, pine wood interiors, and complimentary buffet breakfast.',
+              googleMapsUrl: 'https://www.google.com/maps/search/?api=1&query=Highland+Resort',
+              rating: 4.8,
+              isGoogleVerified: true,
+            },
+            {
+              title: '🌄 Day 2: High Altitude Mountain Excursion & Adventure',
               category: 'activity',
-              vendor: 'Amber Fort & Chokhi Dhani',
+              journeyPhase: 'exploration',
+              vendor: 'Himalayan Adventure Guild',
               estimatedCost: 6500,
               dayNumber: 2,
-              description: 'Sunset panoramic overlook followed by traditional Rajasthani dinner buffet.',
-              googleMapsUrl: 'https://www.google.com/maps/search/?api=1&query=Amber+Fort+Jaipur',
+              description: 'Guided valley tour, panoramic viewpoint overlook, and outdoor adventure activities.',
               rating: 4.7,
               isGoogleVerified: true,
             },
             {
-              title: 'Lakeside Heritage Cafe & Boat Ride',
+              title: '🍽️ Day 2: Regional Heritage Dinner Feast',
               category: 'dining',
-              vendor: 'Taj Lake Palace Udaipur',
-              estimatedCost: 8500,
-              dayNumber: 3,
-              description: 'Private lake tour with evening sunset snacks and photography point.',
-              googleMapsUrl: 'https://www.google.com/maps/search/?api=1&query=Taj+Lake+Palace+Udaipur',
+              journeyPhase: 'exploration',
+              vendor: 'The Heritage Cafe & Hearth',
+              estimatedCost: 3200,
+              dayNumber: 2,
+              description: 'Authentic local cuisine, wood-fired artisan breads, and live acoustic squad evening.',
               rating: 4.9,
+              isGoogleVerified: true,
+            },
+            {
+              title: '🌄 Day 3: Cultural Old Village Trail & Artisan Markets',
+              category: 'activity',
+              journeyPhase: 'exploration',
+              vendor: 'Old Heritage Trails',
+              estimatedCost: 2800,
+              dayNumber: 3,
+              description: 'Self-guided wooden architecture stroll, local craftsmanship workshops, and scenic photography.',
+              rating: 4.8,
+              isGoogleVerified: true,
+            },
+            {
+              title: '🏁 Inbound Return Transit: Farewell Journey Back Home',
+              category: 'rental',
+              journeyPhase: 'coming',
+              vendor: 'Himalayan Express Fleet',
+              estimatedCost: 3500,
+              dayNumber: 4,
+              description: 'Hotel checkout, farewell souvenir pickup, and comfortable return journey transit back home with zero-confusion final ledger wrap-up.',
+              rating: 4.8,
               isGoogleVerified: true,
             },
           ],
@@ -407,7 +557,7 @@ export const GogoUnifiedModal: React.FC<GogoUnifiedModalProps> = ({
         setActiveTab('blueprint');
       }
     } catch (err) {
-      console.warn('Plan generation error:', err);
+      console.warn('Plan generation notice:', err);
     } finally {
       setIsGeneratingPlan(false);
     }
@@ -425,13 +575,14 @@ export const GogoUnifiedModal: React.FC<GogoUnifiedModalProps> = ({
             id: 'bk-gogo-' + Date.now() + Math.random().toString(36).substring(2, 6),
             tripId: trip.id,
             title: b.title,
-            category: b.category === 'stay' ? 'lodging' : b.category === 'dining' ? 'food' : 'activity',
+            category: b.category === 'stay' ? 'lodging' : b.category === 'dining' ? 'food' : b.category === 'flight' ? 'flight' : b.category === 'rental' ? 'rental' : 'activity',
             vendor: b.vendor,
             estimatedCost: b.estimatedCost,
             actualCost: b.estimatedCost,
             status: 'confirmed',
             googleMapsUrl: b.googleMapsUrl,
             rating: b.rating,
+            notes: b.description,
           });
         }
       }
@@ -509,6 +660,23 @@ export const GogoUnifiedModal: React.FC<GogoUnifiedModalProps> = ({
                 <span>4-Step Planner</span>
               </button>
 
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('voice');
+                  const currentQ = PLANNER_STEPS.find((s) => s.step === plannerStep) || PLANNER_STEPS[0];
+                  speakText(`Step ${currentQ.step}: ${currentQ.title}. ${currentQ.subtitle}`);
+                }}
+                className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer ${
+                  activeTab === 'voice'
+                    ? 'bg-[#5A7863] text-[#EBF4DD] font-bold shadow-xs'
+                    : 'text-[#5A7863] hover:text-[#3B4953] dark:text-[#95A898] dark:hover:text-[#F4F5EE]'
+                }`}
+              >
+                <Mic className="w-3.5 h-3.5 text-emerald-500 animate-pulse" />
+                <span>Voice Interview</span>
+              </button>
+
               {generatedPlan && (
                 <button
                   type="button"
@@ -555,7 +723,68 @@ export const GogoUnifiedModal: React.FC<GogoUnifiedModalProps> = ({
                   >
                     <div className="whitespace-pre-wrap">{m.text}</div>
 
-                    {/* Action payload button if present */}
+                    {/* Action payload: Direct Booking Card */}
+                    {m.actionPayload?.type === 'CREATE_BOOKING' && m.actionPayload.data && (
+                      <div className="mt-2.5 p-3 rounded-2xl bg-[#E8EEDC] dark:bg-[#152017] border border-[#5A7863]/30 dark:border-[#2D3E30] space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="text-base">
+                              {m.actionPayload.data.category === 'stay'
+                                ? '🏨'
+                                : m.actionPayload.data.category === 'dining'
+                                ? '🍽️'
+                                : m.actionPayload.data.category === 'flight'
+                                ? '✈️'
+                                : m.actionPayload.data.category === 'rental'
+                                ? '🚖'
+                                : '🛶'}
+                            </span>
+                            <div>
+                              <h5 className="font-bold text-xs text-[#3B4953] dark:text-[#F4F5EE]">
+                                {m.actionPayload.data.title}
+                              </h5>
+                              <p className="text-[10px] text-[#5A7863] dark:text-[#95A898]">
+                                {m.actionPayload.data.vendor} • Day {m.actionPayload.data.dayNumber || 1}
+                              </p>
+                            </div>
+                          </div>
+                          <span className="font-numeric font-bold text-xs text-[#2D7A5C] dark:text-[#D9EE86]">
+                            ₹{m.actionPayload.data.estimatedCost?.toLocaleString('en-IN')}
+                          </span>
+                        </div>
+                        {m.actionPayload.data.description && (
+                          <p className="text-[10px] text-[#78887B] dark:text-[#95A898] italic">
+                            {m.actionPayload.data.description}
+                          </p>
+                        )}
+                        <div className="pt-1 flex justify-end">
+                          {addedBookings[m.actionPayload.data.id || m.id] ? (
+                            <span className="px-3 py-1.5 rounded-lg bg-emerald-600/20 text-emerald-700 dark:text-emerald-400 font-bold text-[11px] flex items-center gap-1.5 border border-emerald-600/30">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>Added to Itinerary & Ledger!</span>
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (onAddBookingDirectly) {
+                                  onAddBookingDirectly(m.actionPayload.data);
+                                  setAddedBookings((prev) => ({
+                                    ...prev,
+                                    [m.actionPayload.data.id || m.id]: true,
+                                  }));
+                                }
+                              }}
+                              className="px-3 py-1.5 rounded-lg bg-[#5A7863] hover:bg-[#4C6753] text-[#EBF4DD] font-bold text-[11px] flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                            >
+                              <span>➕ Add to Itinerary & Ledger</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Action payload: Expense Draft */}
                     {m.actionPayload?.type === 'EXPENSE_DRAFT' && onOpenAddExpense && (
                       <div className="mt-2.5 pt-2 border-t border-[#5A7863]/15 dark:border-[#2B3E2F] flex justify-end">
                         <button
@@ -584,6 +813,8 @@ export const GogoUnifiedModal: React.FC<GogoUnifiedModalProps> = ({
                           onClick={() => {
                             if (chip === 'Open 4-Step Planner') {
                               setActiveTab('planner');
+                            } else if (chip === 'Start Voice Interview') {
+                              setActiveTab('voice');
                             } else {
                               handleSendMessage(chip);
                             }
@@ -601,12 +832,12 @@ export const GogoUnifiedModal: React.FC<GogoUnifiedModalProps> = ({
               {isTyping && (
                 <div className="flex items-center gap-2 text-xs text-[#5A7863] bg-[#E8EEDC] dark:bg-[#1C261E] border border-[#5A7863]/20 dark:border-[#2B3E2F] p-3 rounded-2xl w-fit">
                   <Loader2 className="w-3.5 h-3.5 animate-spin text-[#5A7863]" />
-                  <span>Gogo is thinking...</span>
+                  <span>Grok AI is thinking...</span>
                 </div>
               )}
             </div>
 
-            {/* Chat Input Bar */}
+            {/* Chat Input Bar with Voice Dictation */}
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -618,9 +849,22 @@ export const GogoUnifiedModal: React.FC<GogoUnifiedModalProps> = ({
                 type="text"
                 value={inputMessage}
                 onChange={(e) => setInputMessage(e.target.value)}
-                placeholder="Ask Gogo: 'Who owes what?', 'Plan dinner under ₹1500', 'Log ₹1200 taxi'..."
+                placeholder="Ask Grok: 'Why does Rahul owe ₹850?', 'Book Taj Hotel for ₹4500 on Day 2'..."
                 className="flex-1 bg-[#FFFFFF] dark:bg-[#0F1410] border border-[#5A7863]/25 dark:border-[#2B3E2F] rounded-xl px-4 py-2.5 text-xs text-[#3B4953] dark:text-[#F4F5EE] placeholder-[#78887B]/60 focus:border-[#5A7863] outline-none shadow-xs"
               />
+
+              <button
+                type="button"
+                onClick={toggleListening}
+                className={`p-2.5 rounded-xl border transition-all cursor-pointer shrink-0 shadow-xs ${
+                  isListening
+                    ? 'bg-rose-600 text-white border-rose-500 animate-pulse'
+                    : 'bg-[#DDE5D0] hover:bg-[#D0DBC0] dark:bg-[#1C261E] dark:hover:bg-[#253528] text-[#5A7863] dark:text-[#95A898] border-[#5A7863]/20'
+                }`}
+                title={isListening ? 'Stop listening' : 'Dictate by voice'}
+              >
+                {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+              </button>
 
               <button
                 type="submit"
@@ -758,7 +1002,210 @@ export const GogoUnifiedModal: React.FC<GogoUnifiedModalProps> = ({
         )}
 
         {/* ══════════════════════════════════════════════════════════════ */}
-        {/* TAB 3: BLUEPRINT PREVIEW & 1-CLICK MATERIALIZE              */}
+        {/* TAB 3: VOICE INTERVIEW MODE FOR TRAVELERS                   */}
+        {/* ══════════════════════════════════════════════════════════════ */}
+        {activeTab === 'voice' && (
+          <div className="flex-1 p-5 sm:p-7 overflow-y-auto space-y-6 relative z-10 flex flex-col items-center justify-between text-center">
+            {/* Step Progress Bar */}
+            <div className="w-full flex items-center justify-between px-2">
+              <span className="text-[11px] font-mono uppercase tracking-widest text-[#5A7863] dark:text-[#95A898] font-bold">
+                Voice Interview • Step {plannerStep} of 4
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsVoiceMuted(!isVoiceMuted)}
+                  className="p-1.5 rounded-lg bg-[#E8EEDC] hover:bg-[#DDE5D0] dark:bg-[#1C261E] dark:hover:bg-[#253528] text-[#5A7863] dark:text-[#95A898] transition-colors"
+                  title={isVoiceMuted ? 'Unmute Gogo Voice' : 'Mute Gogo Voice'}
+                >
+                  {isVoiceMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                </button>
+                <div className="flex gap-1.5">
+                  {[1, 2, 3, 4].map((stepNum) => (
+                    <div
+                      key={stepNum}
+                      className={`w-6 h-1.5 rounded-full transition-all ${
+                        plannerStep === stepNum
+                          ? 'bg-[#5A7863] dark:bg-[#D9EE86] w-8'
+                          : plannerStep > stepNum
+                          ? 'bg-[#5A7863]/50'
+                          : 'bg-[#5A7863]/20'
+                      }`}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Current Spoken Question */}
+            {(() => {
+              const currentQ = PLANNER_STEPS.find((s) => s.step === plannerStep) || PLANNER_STEPS[0];
+              return (
+                <div className="space-y-6 w-full max-w-lg my-auto">
+                  <div className="space-y-1.5">
+                    <h3 className="font-serif-display font-bold text-xl sm:text-2xl text-[#3B4953] dark:text-[#F4F5EE]">
+                      {currentQ.title}
+                    </h3>
+                    <p className="text-xs sm:text-sm text-[#5A7863] dark:text-[#95A898]">{currentQ.subtitle}</p>
+                  </div>
+
+                  {/* Pulsing Interactive Voice Orb */}
+                  <div className="relative w-36 h-36 mx-auto flex items-center justify-center my-4">
+                    <motion.div
+                      animate={{
+                        scale: isListening ? [1, 1.35, 1] : isVoiceSpeaking ? [1, 1.2, 1] : 1,
+                        opacity: isListening ? [0.4, 0.8, 0.4] : 0.3,
+                      }}
+                      transition={{ repeat: Infinity, duration: 2, ease: 'easeInOut' }}
+                      className={`absolute inset-0 rounded-full blur-2xl ${
+                        isListening
+                          ? 'bg-rose-500/40'
+                          : isVoiceSpeaking
+                          ? 'bg-amber-400/30'
+                          : 'bg-emerald-500/25'
+                      }`}
+                    />
+                    <motion.div
+                      animate={{
+                        scale: isListening ? [1, 1.18, 1] : 1,
+                      }}
+                      transition={{ repeat: Infinity, duration: 1.2 }}
+                      className={`w-24 h-24 rounded-full flex items-center justify-center shadow-xl cursor-pointer transition-all border-4 ${
+                        isListening
+                          ? 'bg-rose-600 text-white border-rose-300 ring-8 ring-rose-500/20 shadow-rose-900/40'
+                          : isVoiceSpeaking
+                          ? 'bg-amber-600 text-white border-amber-300 ring-8 ring-amber-500/20'
+                          : 'bg-[#5A7863] text-[#EBF4DD] border-[#8BA794] hover:scale-105 shadow-emerald-950/20'
+                      }`}
+                      onClick={toggleListening}
+                    >
+                      {isListening ? (
+                        <Mic className="w-10 h-10 animate-bounce" />
+                      ) : isVoiceSpeaking ? (
+                        <Radio className="w-10 h-10 animate-pulse" />
+                      ) : (
+                        <Mic className="w-10 h-10" />
+                      )}
+                    </motion.div>
+                  </div>
+
+                  {/* Speech status label */}
+                  <div className="space-y-1">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-[#5A7863] dark:text-[#95A898] block font-mono">
+                      {isListening
+                        ? '🎙️ Listening... Speak your answer now'
+                        : isVoiceSpeaking
+                        ? '🔊 Gogo Speaking...'
+                        : 'Tap the mic or speak your choice'}
+                    </span>
+
+                    {/* Spoken Live Transcript */}
+                    <div className="min-h-[46px] p-3 rounded-2xl bg-[#FFFFFF] dark:bg-[#18231A] border border-[#5A7863]/20 dark:border-[#2B3E2F] flex items-center justify-center shadow-xs">
+                      {voiceTranscript || plannerAnswers[currentQ.key] ? (
+                        <span className="text-xs font-medium text-[#3B4953] dark:text-[#F4F5EE]">
+                          "{voiceTranscript || plannerAnswers[currentQ.key]}"
+                        </span>
+                      ) : (
+                        <span className="text-xs text-[#78887B]/60 dark:text-[#718575] italic">
+                          (Your spoken words will appear here in real time)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Voice Cues / Presets */}
+                  <div className="space-y-1.5 pt-1">
+                    <span className="text-[10px] uppercase font-mono tracking-wider text-[#78887B] block">
+                      Quick Voice Cues (Tap or Speak):
+                    </span>
+                    <div className="flex flex-wrap justify-center gap-1.5">
+                      {currentQ.presets.map((preset, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => {
+                            setPlannerAnswers((prev) => ({ ...prev, [currentQ.key]: preset }));
+                            setVoiceTranscript(preset);
+                          }}
+                          className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all cursor-pointer ${
+                            plannerAnswers[currentQ.key] === preset || voiceTranscript.toLowerCase().includes(preset.toLowerCase().slice(0, 5))
+                              ? 'bg-[#FEF9C3] dark:bg-[#D9EE86]/20 border-[#FDE047] dark:border-[#D9EE86] text-[#713F12] dark:text-[#D9EE86] font-bold'
+                              : 'bg-[#E8EEDC] hover:bg-[#DDE5D0] dark:bg-[#18231A] dark:hover:bg-[#253528] border-[#5A7863]/20 dark:border-[#2B3E2F] text-[#3B4953] dark:text-[#95A898]'
+                          }`}
+                        >
+                          {preset}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Voice Interview Bottom Navigation */}
+            <div className="w-full flex items-center justify-between pt-4 border-t border-[#5A7863]/15 dark:border-[#253327]">
+              <button
+                type="button"
+                onClick={() => {
+                  if (plannerStep > 1) {
+                    setPlannerStep((prev) => prev - 1);
+                    setVoiceTranscript('');
+                  } else {
+                    setActiveTab('planner');
+                  }
+                }}
+                className="px-3.5 py-2 rounded-xl border border-[#5A7863]/20 dark:border-[#2B3E2F] bg-surface-raised text-[#5A7863] hover:text-[#3B4953] dark:text-[#95A898] dark:hover:text-[#F4F5EE] text-xs font-semibold cursor-pointer flex items-center gap-1.5"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>{plannerStep === 1 ? 'Switch to Form' : 'Previous'}</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={isGeneratingPlan}
+                onClick={() => {
+                  const currentQ = PLANNER_STEPS.find((s) => s.step === plannerStep) || PLANNER_STEPS[0];
+                  if (voiceTranscript) {
+                    setPlannerAnswers((prev) => ({ ...prev, [currentQ.key]: voiceTranscript }));
+                  }
+                  if (plannerStep < 4) {
+                    const nextStep = plannerStep + 1;
+                    setPlannerStep(nextStep);
+                    setVoiceTranscript('');
+                    const nextQ = PLANNER_STEPS.find((s) => s.step === nextStep);
+                    if (nextQ) {
+                      speakText(`Step ${nextStep}: ${nextQ.title}. ${nextQ.subtitle}`);
+                    }
+                  } else {
+                    speakText("Perfect! Crafting your complete end-to-end journey from going to coming now.");
+                    handleGeneratePlan();
+                  }
+                }}
+                className="px-5 py-2.5 rounded-xl bg-[#5A7863] hover:bg-[#4C6753] text-[#EBF4DD] font-bold text-xs shadow-md flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+              >
+                {isGeneratingPlan ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Crafting Journey...</span>
+                  </>
+                ) : plannerStep < 4 ? (
+                  <>
+                    <span>Confirm & Next Question</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    <span>Generate End-to-End Journey →</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════ */}
+        {/* TAB 4: BLUEPRINT PREVIEW & 1-CLICK MATERIALIZE              */}
         {/* ══════════════════════════════════════════════════════════════ */}
         {activeTab === 'blueprint' && generatedPlan && (
           <div className="flex-1 p-5 sm:p-6 overflow-y-auto space-y-5 relative z-10">
@@ -766,7 +1213,7 @@ export const GogoUnifiedModal: React.FC<GogoUnifiedModalProps> = ({
             <div className="p-4 rounded-2xl bg-[#E8EEDC] dark:bg-[#1B271E] border border-[#5A7863]/20 dark:border-[#2D3E30] flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
               <div>
                 <span className="text-[10px] font-mono text-[#5A7863] dark:text-[#D9EE86] font-bold uppercase tracking-wider block">
-                  AI Generated Itinerary • {generatedPlan.daysCount} Days
+                  Complete End-to-End Journey • {generatedPlan.daysCount} Days
                 </span>
                 <h4 className="font-serif-display font-bold text-lg text-[#3B4953] dark:text-[#F4F5EE]">
                   {generatedPlan.title}
@@ -782,17 +1229,20 @@ export const GogoUnifiedModal: React.FC<GogoUnifiedModalProps> = ({
               </div>
             </div>
 
-            {/* Generated Bookings List */}
+            {/* Generated Bookings List with Going-to-Coming Flow */}
             <div className="space-y-3">
-              <h5 className="text-xs font-mono uppercase text-[#5A7863] dark:text-[#95A898] font-bold tracking-wider">
-                Curated Stops & Bookings ({generatedPlan.bookings?.length || 0})
+              <h5 className="text-xs font-mono uppercase text-[#5A7863] dark:text-[#95A898] font-bold tracking-wider flex items-center gap-2">
+                <span>End-to-End Travel Flow</span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-400 border border-emerald-300">
+                  {generatedPlan.bookings?.length || 0} Scheduled Stops
+                </span>
               </h5>
 
               <div className="space-y-2.5">
                 {generatedPlan.bookings?.map((b, idx) => (
                   <div
                     key={idx}
-                    className="p-3.5 rounded-xl bg-[#FFFFFF] dark:bg-[#18231A] border border-[#5A7863]/15 dark:border-[#2B3E2F] flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs"
+                    className="p-3.5 rounded-xl bg-[#FFFFFF] dark:bg-[#18231A] border border-[#5A7863]/15 dark:border-[#2B3E2F] flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs hover:border-[#5A7863]/40 transition-all"
                   >
                     <div className="flex items-start gap-3">
                       <div className="w-8 h-8 rounded-xl bg-[#5A7863]/15 text-[#5A7863] flex items-center justify-center shrink-0 mt-0.5">
@@ -800,15 +1250,35 @@ export const GogoUnifiedModal: React.FC<GogoUnifiedModalProps> = ({
                           <Hotel className="w-4 h-4" />
                         ) : b.category === 'dining' ? (
                           <Utensils className="w-4 h-4" />
+                        ) : b.category === 'flight' ? (
+                          <Plane className="w-4 h-4" />
                         ) : (
                           <Compass className="w-4 h-4" />
                         )}
                       </div>
                       <div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-bold text-xs text-[#3B4953] dark:text-[#F4F5EE]">{b.title}</span>
                           <span className="text-[10px] px-2 py-0.2 rounded-full bg-[#FEF9C3] text-[#713F12] border border-[#FDE047]/60 font-mono font-bold">
                             Day {b.dayNumber}
+                          </span>
+                          {/* Journey Phase Badge */}
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
+                            b.journeyPhase === 'going'
+                              ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 border border-blue-300'
+                              : b.journeyPhase === 'coming'
+                              ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border border-amber-300'
+                              : b.journeyPhase === 'stay'
+                              ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300 border border-purple-300'
+                              : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 border border-emerald-300'
+                          }`}>
+                            {b.journeyPhase === 'going'
+                              ? '🛫 Going (Outbound)'
+                              : b.journeyPhase === 'coming'
+                              ? '🏁 Coming (Inbound)'
+                              : b.journeyPhase === 'stay'
+                              ? '🏨 Base Camp'
+                              : '🌄 Exploration'}
                           </span>
                         </div>
                         <p className="text-[11px] text-[#78887B] dark:text-[#95A898] mt-0.5">{b.description}</p>

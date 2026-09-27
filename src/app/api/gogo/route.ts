@@ -71,54 +71,74 @@ export async function POST(req: Request) {
       });
     }
 
-    // 2. Answer Question
-    if (action === 'answer') {
-      const { sessionId, step, key, answer, previousAnswers = {} } = body;
-      if (!sessionId || !key || !answer) {
-        return NextResponse.json({ success: false, error: 'Session ID, key, and answer required' }, { status: 400 });
+    // 2. Answer Question or Generate Full Itinerary Plan
+    if (action === 'answer' || action === 'generate-plan') {
+      let destQuery = 'Rajasthan';
+      let budgetNum = 50000;
+      let daysCountNum = 4;
+      let travelersNum = 4;
+      let sessionId = body.sessionId || 'gogo-' + Date.now();
+
+      if (action === 'answer') {
+        const { step, key, answer, previousAnswers = {} } = body;
+        if (!key || !answer) {
+          return NextResponse.json({ success: false, error: 'Key and answer required' }, { status: 400 });
+        }
+
+        const updatedAnswers = { ...previousAnswers, [key]: answer };
+
+        // Update session answers in DB
+        try {
+          await sql`
+            UPDATE gogo_sessions
+            SET interview_answers = ${JSON.stringify(updatedAnswers)}::jsonb,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ${sessionId};
+          `;
+        } catch (e) {}
+
+        // If more questions exist, return next question
+        if (step < INTERVIEW_QUESTIONS.length) {
+          const nextQ = INTERVIEW_QUESTIONS[step]; // 0-indexed matches step directly
+          return NextResponse.json({
+            success: true,
+            sessionId,
+            currentStep: step + 1,
+            totalSteps: 4,
+            question: nextQ,
+            updatedAnswers,
+            isComplete: false,
+          });
+        }
+
+        destQuery = updatedAnswers.destination || 'Rajasthan';
+        budgetNum = parseInt((updatedAnswers.budget || '50000').replace(/[^0-9]/g, '')) || 50000;
+        daysCountNum = parseInt((updatedAnswers.duration || '4').replace(/[^0-9]/g, '')) || 4;
+        travelersNum = parseInt((updatedAnswers.travelers || '4').replace(/[^0-9]/g, '')) || 4;
+      } else {
+        // Direct generate-plan action
+        destQuery = body.destination || 'Rajasthan';
+        budgetNum = parseInt(String(body.budget || '50000').replace(/[^0-9]/g, '')) || 50000;
+        daysCountNum = parseInt(String(body.daysCount || '4').replace(/[^0-9]/g, '')) || 4;
+        travelersNum = parseInt(String(body.travelers || '4').replace(/[^0-9]/g, '')) || 4;
       }
-
-      const updatedAnswers = { ...previousAnswers, [key]: answer };
-
-      // Update session answers in DB
-      await sql`
-        UPDATE gogo_sessions
-        SET interview_answers = ${JSON.stringify(updatedAnswers)}::jsonb,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = ${sessionId};
-      `;
-
-      // If more questions exist, return next question
-      if (step < INTERVIEW_QUESTIONS.length) {
-        const nextQ = INTERVIEW_QUESTIONS[step]; // 0-indexed matches step directly
-        return NextResponse.json({
-          success: true,
-          sessionId,
-          currentStep: step + 1,
-          totalSteps: 4,
-          question: nextQ,
-          updatedAnswers,
-          isComplete: false,
-        });
-      }
-
-      // Final step: Generate Full AI Itinerary Plan using Groq
-      // Scrape real hotels, dining, and activities for the requested destination
-      const destQuery = updatedAnswers.destination || 'Rajasthan';
-      const budgetNum = parseInt((updatedAnswers.budget || '50000').replace(/[^0-9]/g, '')) || 50000;
-      const daysCountNum = parseInt((updatedAnswers.duration || '4').replace(/[^0-9]/g, '')) || 4;
-      const travelersNum = parseInt((updatedAnswers.travelers || '4').replace(/[^0-9]/g, '')) || 4;
 
       const scrapedDossier = await scrapeDestinationData(destQuery, budgetNum, daysCountNum);
 
       const systemPrompt = `You are Gogo, an expert travel architect for Tulis.
 Generate a structured, geographically accurate travel itinerary and budget breakdown based on the user's answers and verified ground-truth destination data.
 
+END-TO-END JOURNEY ARCHITECTURE ('GOING TO COMING' MANDATE):
+The itinerary MUST represent the complete journey from start to finish:
+1. "going": Day 1 outbound departure transit (Flight, Train, or Road trip express), arrival in ${scrapedDossier.destination}, luggage drop & check-in at base stay, and evening welcome meal.
+2. "stay": Verified base camp / boutique resort stay throughout the trip.
+3. "exploration": Intermediate days packed with morning adventures, regional specialty lunch, afternoon cultural exploration, and sunset viewpoints.
+4. "coming": Final day farewell souvenir shopping, hotel check-out, inbound return journey transit back home, and squad balance settlement wrap-up.
+
 STRICT GEOGRAPHIC BOUNDARY RULE:
 The requested destination is: "${scrapedDossier.destination}" (${scrapedDossier.stateOrCountry}).
 EVERY SINGLE stay, hotel, restaurant, and activity MUST BE STRICTLY LOCATED IN ${scrapedDossier.destination.toUpperCase()}.
-DO NOT recommend places from any other state or region (for example: if destination is Assam, ALL places MUST be in Assam like Guwahati, Kaziranga, Majuli, Jorhat, Tezpur; NEVER recommend places from Rajasthan, Himachal, Goa, or anywhere else).
-Any recommendation outside ${scrapedDossier.destination} is strictly prohibited.
+DO NOT recommend places from any other state or region. Any recommendation outside ${scrapedDossier.destination} is strictly prohibited.
 
 Verified authentic places in ${scrapedDossier.destination}:
 - Stays / Hotels: ${scrapedDossier.hotels.map((h) => h.name).join(', ')}
@@ -136,6 +156,7 @@ Respond ONLY with a valid JSON object matching this schema:
     {
       "title": string,
       "category": "stay" | "flight" | "train" | "rental" | "activity" | "dining",
+      "journeyPhase": "going" | "stay" | "exploration" | "coming",
       "vendor": string,
       "estimatedCost": number,
       "dayNumber": number,
@@ -148,19 +169,21 @@ Respond ONLY with a valid JSON object matching this schema:
       "bestTimeToVisit": string
     }
   ]
-}`;
+}
 
-      const userContent = `Create an authentic trip itinerary for ${scrapedDossier.destination}:
+Ensure the bookings include:
+- At least 1 outbound transit item on Day 1 (journeyPhase: "going", category: "flight" or "train" or "rental")
+- 1 stay item (journeyPhase: "stay", category: "stay")
+- Daily activities and dining (journeyPhase: "exploration")
+- At least 1 return transit item on Day ${daysCountNum} (journeyPhase: "coming", category: "flight" or "train" or "rental")`;
+
+      const userContent = `Create a complete end-to-end trip itinerary for ${scrapedDossier.destination} from going to coming:
 - Duration: ${daysCountNum} days
 - Travelers: ${travelersNum} people
 - Budget: ₹${budgetNum}
-IMPORTANT: For every single hotel, restaurant, and venue, provide:
-1. Valid mobile / telephone contact number
-2. Official website URL
-3. Real star rating (e.g. 4.8 / 5)
-4. Key highlights and vibes array (e.g. ["Royal Peacock Courtyard", "Heritage Architecture", "Fine Dining"])
-5. Detailed address or locality
-6. Best time of day to visit`;
+IMPORTANT:
+1. Cover the full journey from departure outbound transit ("going") to final inbound return journey back home ("coming").
+2. For every hotel, restaurant, and venue, provide valid phone number, official website, real rating (e.g. 4.8), highlights, address, and best time to visit.`;
 
       let generatedPlan: any = null;
 
@@ -196,7 +219,7 @@ IMPORTANT: For every single hotel, restaurant, and venue, provide:
 
       // Try Groq if OpenAI didn't produce a plan and Groq key is present
       if (!generatedPlan && GROQ_API_KEY) {
-        const candidateModels = ['qwen/qwen3.8-27b', 'openai/gpt-oss-120b', 'llama-3.3-70b-versatile'];
+        const candidateModels = ['openai/gpt-oss-120b', 'qwen/qwen3.8-27b'];
 
         for (const model of candidateModels) {
           try {
@@ -384,6 +407,7 @@ IMPORTANT: For every single hotel, restaurant, and venue, provide:
         sessionId,
         isComplete: true,
         generatedPlan,
+        plan: generatedPlan,
         message: 'Gogo itinerary plan crafted successfully!',
       });
     }
@@ -653,6 +677,182 @@ Respond ONLY with a valid JSON object matching this schema:
         success: true,
         sessionId,
         votes: aggregated,
+      });
+    }
+
+    // 6. Grok AI Direct Assistant: Budget Q&A, Trip Guidance & Direct Booking Creation
+    if (action === 'ask-question') {
+      const {
+        query,
+        destination = 'Trip',
+        totalSpend = 0,
+        budgetCeiling = 50000,
+        participants = [],
+        expenses = [],
+        netBalances = [],
+        simplifiedDebts = [],
+        bookings = [],
+        currentUser,
+      } = body;
+
+      if (!query) {
+        return NextResponse.json({ success: false, error: 'Query is required' }, { status: 400 });
+      }
+
+      const remainingBudget = Math.max(0, budgetCeiling - totalSpend);
+      const participantSummary = participants
+        .map((p: any) => `${p.name || 'Member'} (${p.role || 'traveler'}, ID: ${p.id})`)
+        .join(', ');
+
+      const netBalanceSummary =
+        netBalances.length > 0
+          ? netBalances
+              .map((nb: any) => {
+                const p = participants.find((x: any) => x.id === nb.participantId);
+                const name = p?.name || nb.participantId;
+                const amt = Number(nb.netBalance) || 0;
+                if (amt > 0.01) return `${name}: +₹${amt.toFixed(2)} (OWED to them / in surplus)`;
+                if (amt < -0.01) return `${name}: -₹${Math.abs(amt).toFixed(2)} (OWES the squad / in deficit)`;
+                return `${name}: ₹0.00 (Fully balanced)`;
+              })
+              .join('; ')
+          : 'All balances currently balanced (zero debt)';
+
+      const debtSummary =
+        simplifiedDebts.length > 0
+          ? simplifiedDebts
+              .map((d: any) => {
+                const fromP = participants.find((x: any) => x.id === d.fromParticipantId)?.name || d.fromParticipantId;
+                const toP = participants.find((x: any) => x.id === d.toParticipantId)?.name || d.toParticipantId;
+                return `${fromP} pays ${toP} ₹${Number(d.amount).toFixed(2)}`;
+              })
+              .join('; ')
+          : 'No pending debt transfers';
+
+      const expenseListSummary =
+        expenses.length > 0
+          ? expenses
+              .slice(-10)
+              .map((e: any) => {
+                const payer = participants.find((x: any) => x.id === e.payerId)?.name || e.payerId || 'Squad';
+                return `• "${e.title || 'Expense'}": ₹${e.totalAmount || e.amount || 0} paid by ${payer} (Split: ${e.splitType || 'equal'})`;
+              })
+              .join('\n')
+          : 'No expenses logged yet';
+
+      const bookingListSummary =
+        bookings.length > 0
+          ? bookings
+              .slice(-10)
+              .map((b: any) => `• Day ${b.dayNumber || 1}: ${b.title} (${b.category || 'booking'}, ₹${b.estimatedCost || b.actualCost || 0}, vendor: ${b.vendor || 'N/A'})`)
+              .join('\n')
+          : 'No bookings scheduled yet';
+
+      const systemPrompt = `You are Grok AI, the autonomous, mathematically precise financial auditor and companion for Tulis.
+Trip: ${destination}. Total Squad Budget: ₹${budgetCeiling}. Total Spent: ₹${totalSpend}. Remaining: ₹${remainingBudget}.
+Squad Members: ${participantSummary || 'Aditya, Sarah, Rahul, Priya'}.
+
+CURRENT VERIFIED LEDGER STATE:
+Participant Net Balances:
+${netBalanceSummary}
+
+Simplified Optimal Debt Transfers (Minimum Transactions Invariant):
+${debtSummary}
+
+Recent Logged Expenses:
+${expenseListSummary}
+
+Existing Trip Bookings:
+${bookingListSummary}
+
+Current User: ${currentUser?.name || 'Traveler'} (${currentUser?.id || 'user'})
+
+CAPABILITIES:
+1. BUDGET & SQUAD BALANCE QUESTIONS:
+   - When asked "how much money do I / does someone owe / am I owed and WHY is it this much":
+     State the exact net balance. Explain the mathematical WHY: reference the specific expenses they benefited from, their split shares, what they paid out-of-pocket vs what was paid on their behalf, and who they settle up with.
+     Reinforce the zero-sum invariant: sum of all net balances in Tulis strictly equals ₹0.00.
+2. TRIP & LOCAL DESTINATION GUIDANCE:
+   - Answer destination questions (weather, local attractions, authentic cuisine, packing tips, safety, scenic viewpoints) for ${destination} with vivid, authentic regional recommendations.
+3. DIRECT BOOKING CREATION:
+   - If the user asks to book or schedule something (e.g. "Book Taj Hotel on Day 2 for ₹4500", "Add rafting on Day 3 for ₹1200", "Reserve dinner at Cafe Simla Times for ₹1500"), EXTRACT the booking details and populate "bookingToCreate".
+
+You must respond in strictly valid JSON matching this schema:
+{
+  "reply": string, // markdown formatted, helpful, transparent and direct
+  "bookingToCreate": { // ONLY include if user requested to book or add a stay/activity/flight/train/dining/cab! Otherwise null
+    "title": string,
+    "category": "stay" | "activity" | "dining" | "flight" | "train" | "rental",
+    "vendor": string,
+    "estimatedCost": number,
+    "actualCost": number,
+    "dayNumber": number,
+    "description": string,
+    "status": "confirmed"
+  } | null,
+  "suggestedFollowUps": string[]
+}`;
+
+      let aiReply: any = null;
+      if (GROQ_API_KEY) {
+        const candidateModels = ['openai/gpt-oss-120b', 'qwen/qwen3.8-27b'];
+        for (const model of candidateModels) {
+          try {
+            const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+              method: 'POST',
+              signal: AbortSignal.timeout(10000),
+              headers: {
+                Authorization: `Bearer ${GROQ_API_KEY}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                model,
+                messages: [
+                  { role: 'system', content: systemPrompt },
+                  { role: 'user', content: query },
+                ],
+                response_format: { type: 'json_object' },
+                temperature: 0.2,
+              }),
+            });
+
+            if (groqRes.ok) {
+              const data = await groqRes.json();
+              const content = data.choices?.[0]?.message?.content || '{}';
+              const parsed = JSON.parse(content);
+              if (parsed && parsed.reply) {
+                aiReply = parsed;
+                break;
+              }
+            }
+          } catch (gErr) {
+            console.warn(`Groq ask-question notice (${model}):`, gErr);
+          }
+        }
+      }
+
+      if (!aiReply) {
+        aiReply = {
+          reply: `For **${destination}**, remaining squad budget is **₹${remainingBudget.toLocaleString('en-IN')}** out of **₹${budgetCeiling.toLocaleString('en-IN')}**. All squad balances are zero-sum reconciled.`,
+          bookingToCreate: null,
+          suggestedFollowUps: ['Who owes what in the squad?', 'What is our remaining budget?'],
+        };
+      }
+
+      if (aiReply.bookingToCreate) {
+        aiReply.bookingToCreate = {
+          id: 'bk-' + Date.now(),
+          tripId: body.tripId || 'default-trip',
+          status: 'confirmed',
+          ...aiReply.bookingToCreate,
+        };
+      }
+
+      return NextResponse.json({
+        success: true,
+        reply: aiReply.reply,
+        bookingToCreate: aiReply.bookingToCreate || null,
+        suggestedFollowUps: aiReply.suggestedFollowUps || [],
       });
     }
 

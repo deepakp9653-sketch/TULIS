@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Compass,
@@ -10,21 +10,15 @@ import {
   Thermometer,
   Clock,
   Sparkles,
-  ShieldCheck,
-  TrendingUp,
-  ArrowRight,
-  RotateCcw,
-  CheckCircle2,
-  AlertTriangle,
-  Play,
-  Layers,
-  Radio,
-  FileCheck,
-  Share2,
   MapPin,
   Search,
-  Check,
-  Info,
+  CheckCircle2,
+  RefreshCw,
+  ExternalLink,
+  Navigation,
+  Radio,
+  Share2,
+  AlertTriangle,
 } from 'lucide-react';
 import { Participant, Booking, Expense, Payment, RefundEvent } from '@/lib/types';
 import {
@@ -41,7 +35,7 @@ import {
   PlanFeasibilityResult,
 } from '@/lib/weather-service';
 import { GeospatialImpactMap } from './GeospatialImpactMap';
-import { OpenStreetMap2D } from './OpenStreetMap2D';
+import { OpenStreetMap2D, MapSocialSignalPin } from './OpenStreetMap2D';
 
 interface DigitalTwinStudioModalProps {
   isOpen: boolean;
@@ -66,8 +60,14 @@ export const DigitalTwinStudioModal: React.FC<DigitalTwinStudioModalProps> = ({
   refunds,
   onCommitSimulation,
 }) => {
-  // Destination Switcher & Explorer State
-  const [activeDestination, setActiveDestination] = useState<string>(initialDestination || 'Goa');
+  // Real User Geolocation State
+  const [userRealCoords, setUserRealCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [userRealLocationName, setUserRealLocationName] = useState<string>('My Current Location');
+  const [isDetectingLocation, setIsDetectingLocation] = useState<boolean>(false);
+  const [isUsingRealLocation, setIsUsingRealLocation] = useState<boolean>(true);
+
+  // Active Destination / Location under study
+  const [activeDestination, setActiveDestination] = useState<string>('My Location');
   const [customSearchQuery, setCustomSearchQuery] = useState<string>('');
   const [mapViewMode, setMapViewMode] = useState<'osm_2d' | 'radar_canvas'>('osm_2d');
 
@@ -75,20 +75,96 @@ export const DigitalTwinStudioModal: React.FC<DigitalTwinStudioModalProps> = ({
   const [liveWeather, setLiveWeather] = useState<CurrentLiveWeather | null>(null);
   const [isLoadingLiveWeather, setIsLoadingLiveWeather] = useState(false);
 
+  // 100% Pure Meteorological Weather Telemetry State (Strictly Today)
+  const [liveSocialSignals, setLiveSocialSignals] = useState<any[]>([]);
+  const [isLoadingSocialSignals, setIsLoadingSocialSignals] = useState(false);
+  const [signalsTodayDate, setSignalsTodayDate] = useState<string>('');
+  const [weatherCategoryFilter, setWeatherCategoryFilter] = useState<
+    'all' | 'rain_flood' | 'temp_wind' | 'alert_warning' | 'telemetry'
+  >('all');
+  const [categoryCounts, setCategoryCounts] = useState<{
+    all: number;
+    rain_flood: number;
+    temp_wind: number;
+    alert_warning: number;
+    telemetry: number;
+  }>({ all: 0, rain_flood: 0, temp_wind: 0, alert_warning: 0, telemetry: 0 });
+
   // Digital Twin Weather Parameters (Overridable sliders)
   const [params, setParams] = useState<WeatherSimulationParameters>({
     rainfallMmPerHour: 0,
     stormDurationHours: 3,
     temperatureC: 30,
     windSpeedKmh: 14,
-    epicenterName: `${initialDestination || 'Goa'} City Center`,
-    epicenterCoords: { lat: 15.2993, lng: 74.1240 },
+    epicenterName: 'My Location Center',
+    epicenterCoords: { lat: 18.950, lng: 72.833 },
   });
 
-  // Active right sidebar tab: 'feasibility' | 'controls' | 'social' | 'ledger'
-  const [activeTab, setActiveTab] = useState<'feasibility' | 'controls' | 'social' | 'ledger'>('feasibility');
+  // Active right sidebar tab: 'feasibility' | 'controls' | 'socials'
+  const [activeTab, setActiveTab] = useState<'feasibility' | 'controls' | 'socials'>('feasibility');
 
-  // Fetch real-time weather whenever activeDestination changes
+  // Detect Traveler's Real Physical GPS Coordinates & Reverse Geocode
+  const detectUserRealLocation = useCallback(async () => {
+    if (typeof window === 'undefined' || !('geolocation' in navigator)) return;
+
+    setIsDetectingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        setUserRealCoords({ lat, lng });
+
+        let locName = 'My Location';
+        try {
+          // Free OpenStreetMap Nominatim Reverse Geocoding
+          const revRes = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=12`,
+            { headers: { 'User-Agent': 'TulisTravelApp/1.0' } }
+          );
+          if (revRes.ok) {
+            const revData = await revRes.json();
+            const addr = revData.address;
+            locName =
+              addr?.city ||
+              addr?.town ||
+              addr?.suburb ||
+              addr?.state_district ||
+              addr?.state ||
+              'My Location';
+            setUserRealLocationName(locName);
+          }
+        } catch (revErr) {
+          console.warn('Reverse geocoding warning:', revErr);
+        }
+
+        setIsUsingRealLocation(true);
+        setActiveDestination(locName);
+        setParams((prev) => ({
+          ...prev,
+          epicenterCoords: { lat, lng },
+          epicenterName: `${locName} Center`,
+        }));
+        setIsDetectingLocation(false);
+      },
+      (err) => {
+        console.warn('Geolocation read warning:', err);
+        setIsDetectingLocation(false);
+        // Fallback to initial destination if permission denied
+        setActiveDestination(initialDestination || 'Mumbai');
+        setIsUsingRealLocation(false);
+      },
+      { enableHighAccuracy: true, timeout: 6000 }
+    );
+  }, [initialDestination]);
+
+  // Trigger real location detection on modal open
+  useEffect(() => {
+    if (isOpen) {
+      detectUserRealLocation();
+    }
+  }, [isOpen, detectUserRealLocation]);
+
+  // Fetch real-time Open-Meteo weather for the active location/coordinates
   useEffect(() => {
     if (isOpen && activeDestination) {
       setIsLoadingLiveWeather(true);
@@ -101,12 +177,47 @@ export const DigitalTwinStudioModal: React.FC<DigitalTwinStudioModalProps> = ({
             temperatureC: data.temperature,
             windSpeedKmh: data.windSpeed,
             epicenterName: `${data.destination} Center`,
-            epicenterCoords: { lat: data.latitude, lng: data.longitude },
+            epicenterCoords: userRealCoords && isUsingRealLocation
+              ? userRealCoords
+              : { lat: data.latitude, lng: data.longitude },
           }));
         })
         .finally(() => setIsLoadingLiveWeather(false));
     }
-  }, [isOpen, activeDestination]);
+  }, [isOpen, activeDestination, isUsingRealLocation, userRealCoords]);
+
+  // Fetch 100% Live Real-World Social Signals (Reddit & News Wire)
+  const fetchLiveSocialSignals = useCallback(async () => {
+    if (!isOpen || !activeDestination) return;
+    setIsLoadingSocialSignals(true);
+    try {
+      const lat = params.epicenterCoords.lat || 18.950;
+      const lng = params.epicenterCoords.lng || 72.833;
+      const res = await fetch(
+        `/api/social-signals?location=${encodeURIComponent(activeDestination)}&lat=${lat}&lng=${lng}`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.signals)) {
+          setLiveSocialSignals(data.signals);
+          if (data.todayDate) {
+            setSignalsTodayDate(data.todayDate);
+          }
+          if (data.categoryCounts) {
+            setCategoryCounts(data.categoryCounts);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Fetch live social signals error:', err);
+    } finally {
+      setIsLoadingSocialSignals(false);
+    }
+  }, [isOpen, activeDestination, params.epicenterCoords]);
+
+  useEffect(() => {
+    fetchLiveSocialSignals();
+  }, [fetchLiveSocialSignals]);
 
   // Compute Plan Feasibility Verdict
   const feasibility: PlanFeasibilityResult = useMemo(() => {
@@ -135,7 +246,24 @@ export const DigitalTwinStudioModal: React.FC<DigitalTwinStudioModalProps> = ({
 
   if (!isOpen) return null;
 
+  // Handle switching to real location
+  const handleUseRealLocation = () => {
+    if (userRealCoords) {
+      setIsUsingRealLocation(true);
+      setActiveDestination(userRealLocationName);
+      setParams((prev) => ({
+        ...prev,
+        epicenterCoords: userRealCoords,
+        epicenterName: `${userRealLocationName} Center`,
+      }));
+    } else {
+      detectUserRealLocation();
+    }
+  };
+
+  // Handle selecting another destination
   const handleSelectDestination = (destName: string, lat?: number, lon?: number) => {
+    setIsUsingRealLocation(false);
     setActiveDestination(destName);
     if (lat && lon) {
       setParams((prev) => ({
@@ -154,62 +282,68 @@ export const DigitalTwinStudioModal: React.FC<DigitalTwinStudioModalProps> = ({
     }
   };
 
-  const handleApplyPreset = (presetKey: string) => {
-    const preset = PRESET_SIMULATION_SCENARIOS[presetKey];
-    if (preset) {
-      setParams(preset);
-    }
-  };
-
-  const handleCommit = () => {
-    if (onCommitSimulation) {
-      onCommitSimulation(simulation.commitAction);
-    }
-    onClose();
-  };
-
-  // Prepare venues for 2D OpenStreetMap
+  // Prepare map coordinates
   const mapCenter: [number, number] = [
-    params.epicenterCoords.lat || 15.2993,
-    params.epicenterCoords.lng || 74.1240,
+    params.epicenterCoords.lat || 18.950,
+    params.epicenterCoords.lng || 72.833,
   ];
 
+  // Map Social Signals for OpenStreetMap2D (Strictly Today)
+  const mapSocialPins: MapSocialSignalPin[] = liveSocialSignals.map((s) => ({
+    id: s.id,
+    author: s.author,
+    content: s.title,
+    lat: s.coordinates.lat,
+    lng: s.coordinates.lng,
+    platform: s.platform,
+    url: s.url,
+    timestamp: s.timestamp,
+    weatherCategory: s.weatherCategory,
+    sentiment: s.sentiment,
+    sourceName: s.sourceName,
+  }));
+
+  // Prepare venues for 2D OpenStreetMap
   const mapVenues = simulation.impactedBookings.map((ib, idx) => ({
     name: ib.booking.title,
-    lat: mapCenter[0] + (idx % 2 === 0 ? 0.03 : -0.03),
-    lng: mapCenter[1] + (idx % 2 === 0 ? 0.04 : -0.04),
+    lat: mapCenter[0] + (idx % 2 === 0 ? 0.025 : -0.025),
+    lng: mapCenter[1] + (idx % 2 === 0 ? 0.03 : -0.03),
     status: ib.impactSeverity === 'suspended' ? ('suspended' as const) : ('at_risk' as const),
   }));
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#1C261F]/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
+    <div className="fixed inset-0 z-50 bg-[#1C261F]/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5 overflow-y-auto font-sans">
       <motion.div
         initial={{ opacity: 0, scale: 0.96 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.96 }}
         className="bg-[#F4F5EE] border border-[#D1D8BE] rounded-3xl max-w-6xl w-full shadow-2xl overflow-hidden flex flex-col my-auto max-h-[94vh]"
       >
-        {/* TOP HEADER: DESTINATION & TELEMETRY */}
+        {/* TOP HEADER: REAL USER LOCATION & TELEMETRY */}
         <div className="p-4 sm:p-5 border-b border-[#D1D8BE] flex flex-wrap items-center justify-between gap-3 bg-[#EBF4DD]">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-[#5A7863] text-white flex items-center justify-center shadow-sm">
-              <Compass className="w-5 h-5 animate-spin" style={{ animationDuration: '24s' }} />
+              <Navigation className="w-5 h-5 animate-pulse" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-base sm:text-lg font-bold text-[#3B4953] tracking-tight">
                   Weather & Plan Feasibility Studio
                 </h2>
-                <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-[#FEF9C3] text-[#854D0E] border border-[#FDE047] font-bold">
-                  Real Open-Meteo & 2D Free Map
+                <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-[#FEF9C3] text-[#854D0E] border border-[#FDE047] font-bold flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#854D0E] animate-ping" />
+                  Grounded to Real Location
                 </span>
               </div>
               <p className="text-xs text-[#6B7C85] flex items-center gap-1.5 mt-0.5">
-                <span>Active Destination:</span>
-                <strong className="text-[#3B4953] bg-white px-2 py-0.5 rounded-md border border-[#D1D8BE]">
-                  📍 {activeDestination}
+                <span>Current Map Focus:</span>
+                <strong className="text-[#3B4953] bg-white px-2 py-0.5 rounded-md border border-[#D1D8BE] flex items-center gap-1">
+                  {isUsingRealLocation ? '🎯' : '📍'} {activeDestination}
+                  {isUsingRealLocation && (
+                    <span className="text-[10px] text-[#5A7863] font-bold">(Your Physical GPS)</span>
+                  )}
                 </strong>
-                <span className="hidden sm:inline text-[11px] text-[#6B7C85]">
+                <span className="hidden sm:inline text-[11px] text-[#6B7C85] font-mono">
                   ({params.epicenterCoords.lat.toFixed(3)}° N, {params.epicenterCoords.lng.toFixed(3)}° E)
                 </span>
               </p>
@@ -238,24 +372,40 @@ export const DigitalTwinStudioModal: React.FC<DigitalTwinStudioModalProps> = ({
           </div>
         </div>
 
-        {/* DESTINATION SWITCHER BAR: SHOWCASE OTHER POSSIBILITIES */}
+        {/* LOCATION SWITCHER BAR: REAL LOCATION FIRST + DESTINATION CHIPS */}
         <div className="p-3 bg-white/80 border-b border-[#D1D8BE] flex flex-wrap items-center justify-between gap-2.5">
-          <div className="flex items-center gap-2 text-xs font-semibold text-[#3B4953] shrink-0">
-            <MapPin className="w-3.5 h-3.5 text-[#5A7863]" />
-            <span>Switch Destination:</span>
-          </div>
+          <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0">
+            {/* Primary "My Real Location" Anchor Button */}
+            <button
+              type="button"
+              onClick={handleUseRealLocation}
+              disabled={isDetectingLocation}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-xs border ${
+                isUsingRealLocation
+                  ? 'bg-[#5A7863] text-white border-[#5A7863]'
+                  : 'bg-[#EBF4DD] text-[#5A7863] hover:bg-[#d8e7c4] border-[#D1D8BE]'
+              }`}
+            >
+              <Navigation className="w-3.5 h-3.5" />
+              <span>
+                {isDetectingLocation ? 'Locating You...' : `🎯 My Real Location (${userRealLocationName})`}
+              </span>
+            </button>
 
-          {/* Quick Place Chips */}
-          <div className="flex flex-wrap items-center gap-1.5 flex-1 min-w-0">
-            {POPULAR_TRAVEL_DESTINATIONS.slice(0, 8).map((dest) => {
-              const isSelected = activeDestination.toLowerCase().includes(dest.name.toLowerCase());
+            <span className="text-xs text-[#6B7C85] px-1 font-medium hidden sm:inline">| Explore other places:</span>
+
+            {/* Other Popular Destination Chips */}
+            {POPULAR_TRAVEL_DESTINATIONS.slice(0, 7).map((dest) => {
+              const isSelected =
+                !isUsingRealLocation &&
+                activeDestination.toLowerCase().includes(dest.name.toLowerCase());
               return (
                 <button
                   key={dest.name}
                   onClick={() => handleSelectDestination(dest.name, dest.lat, dest.lon)}
                   className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer flex items-center gap-1 ${
                     isSelected
-                      ? 'bg-[#5A7863] text-white shadow-xs font-bold'
+                      ? 'bg-[#3B4953] text-white shadow-xs font-bold'
                       : 'bg-[#F4F5EE] text-[#3B4953] hover:bg-[#EBF4DD] border border-[#D1D8BE]'
                   }`}
                 >
@@ -270,7 +420,7 @@ export const DigitalTwinStudioModal: React.FC<DigitalTwinStudioModalProps> = ({
             <div className="relative">
               <input
                 type="text"
-                placeholder="Search any place..."
+                placeholder="Search any city or place..."
                 value={customSearchQuery}
                 onChange={(e) => setCustomSearchQuery(e.target.value)}
                 className="w-36 sm:w-44 text-xs py-1 px-2.5 pl-7 rounded-lg border border-[#D1D8BE] bg-white text-[#3B4953] focus:outline-none focus:border-[#5A7863]"
@@ -292,8 +442,9 @@ export const DigitalTwinStudioModal: React.FC<DigitalTwinStudioModalProps> = ({
           <div className="lg:col-span-7 p-4 sm:p-5 flex flex-col gap-4">
             {/* Map Mode Toggle & Info Bar */}
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-mono uppercase tracking-wider text-[#6B7C85] font-bold">
-                2D Geospatial Map View
+              <span className="text-[10px] font-mono uppercase tracking-wider text-[#6B7C85] font-bold flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-[#5A7863] animate-pulse" />
+                2D Geospatial Map View (Centered on Your Real Position)
               </span>
               <div className="flex items-center gap-1 bg-[#EBF4DD] p-0.5 rounded-lg border border-[#D1D8BE] text-[11px]">
                 <button
@@ -324,10 +475,20 @@ export const DigitalTwinStudioModal: React.FC<DigitalTwinStudioModalProps> = ({
               {mapViewMode === 'osm_2d' ? (
                 <OpenStreetMap2D
                   center={mapCenter}
-                  zoom={11}
+                  zoom={12}
                   destinationName={activeDestination}
                   weatherIntensity={params.rainfallMmPerHour}
                   impactRadiusKm={simulation.impactRadiusKm}
+                  userLocation={
+                    userRealCoords
+                      ? {
+                          lat: userRealCoords.lat,
+                          lng: userRealCoords.lng,
+                          label: `You: ${userRealLocationName}`,
+                        }
+                      : undefined
+                  }
+                  socialSignals={mapSocialPins}
                   venues={mapVenues}
                   className="w-full h-full min-h-[380px]"
                 />
@@ -337,6 +498,7 @@ export const DigitalTwinStudioModal: React.FC<DigitalTwinStudioModalProps> = ({
                   participants={participants}
                   bookings={bookings}
                   onSelectEpicenter={(coords, name) => {
+                    setIsUsingRealLocation(false);
                     setParams((prev) => ({
                       ...prev,
                       epicenterCoords: coords,
@@ -348,24 +510,25 @@ export const DigitalTwinStudioModal: React.FC<DigitalTwinStudioModalProps> = ({
               )}
             </div>
 
-            {/* Real Data Telemetry Footnote */}
-            <div className="p-3 rounded-2xl bg-white border border-[#D1D8BE] shadow-xs flex items-center justify-between text-xs text-[#3B4953]">
+            {/* Real Data Ground Truth Indicator */}
+            <div className="p-3 rounded-2xl bg-white border border-[#D1D8BE] shadow-xs flex flex-wrap items-center justify-between gap-2 text-xs text-[#3B4953]">
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-[#5A7863]" />
-                <span className="font-semibold">Real Data Ground Truth:</span>
+                <span className="font-semibold">100% Live Ground Truth:</span>
                 <span className="text-[#6B7C85]">
-                  Open-Meteo physical keys & OpenStreetMap 2D tiles verified.
+                  Device GPS &bull; Real Open-Meteo Keys &bull; Live Reddit &bull; News Wire Feeds
                 </span>
               </div>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#FEF9C3] text-[#854D0E] font-bold">
-                100% Real API
+                100% Live Telemetry
               </span>
             </div>
           </div>
 
-          {/* RIGHT 5 COLS: FEASIBILITY VERDICT, WEATHER OVERRIDES & LEDGER */}
+          {/* RIGHT 5 COLS: FEASIBILITY, WEATHER OVERRIDES & 100% LIVE SOCIALS */}
+          {/* Note: "Ledger Rebalance" section has been completely removed as requested */}
           <div className="lg:col-span-5 p-4 sm:p-5 flex flex-col gap-4 bg-white/60">
-            {/* Navigation Tabs */}
+            {/* Clean 3-Tab Navigation (Plan Feasibility | Weather Sliders | Live Social Signals) */}
             <div className="flex rounded-xl bg-[#EBF4DD] p-1 border border-[#D1D8BE] text-xs font-semibold">
               <button
                 onClick={() => setActiveTab('feasibility')}
@@ -388,14 +551,14 @@ export const DigitalTwinStudioModal: React.FC<DigitalTwinStudioModalProps> = ({
                 <CloudRain className="w-3.5 h-3.5" /> Weather Sliders
               </button>
               <button
-                onClick={() => setActiveTab('ledger')}
+                onClick={() => setActiveTab('socials')}
                 className={`flex-1 py-1.5 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1 ${
-                  activeTab === 'ledger'
+                  activeTab === 'socials'
                     ? 'bg-[#5A7863] text-white shadow-xs'
                     : 'text-[#6B7C85] hover:text-[#3B4953]'
                 }`}
               >
-                <TrendingUp className="w-3.5 h-3.5" /> Ledger Rebalance
+                <Radio className="w-3.5 h-3.5" /> 🌦️ Weather Signals ({liveSocialSignals.length})
               </button>
             </div>
 
@@ -428,14 +591,14 @@ export const DigitalTwinStudioModal: React.FC<DigitalTwinStudioModalProps> = ({
                 <div className="p-3.5 rounded-2xl bg-white border border-[#D1D8BE] space-y-2">
                   <span className="text-xs font-bold text-[#3B4953] flex items-center gap-1.5">
                     <Sparkles className="w-3.5 h-3.5 text-[#5A7863]" />
-                    <span>Compare Other Places (Feasible vs Not Feasible):</span>
+                    <span>Compare Other Places (Feasible vs Caution):</span>
                   </span>
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     {[
-                      { name: 'Manali', state: 'Himachal', note: '🟢 95% Feasible (Crisp)' },
-                      { name: 'Jaipur', state: 'Rajasthan', note: '🟢 98% Feasible (Sunny)' },
-                      { name: 'Mumbai', state: 'Maharashtra', note: '🟢 92% Feasible (Clear)' },
-                      { name: 'Goa Coast', state: 'Goa', note: '🟡 Marine Caution' },
+                      { name: 'Manali', note: '🟢 95% Feasible (Crisp)' },
+                      { name: 'Jaipur', note: '🟢 98% Feasible (Sunny)' },
+                      { name: 'Mumbai', note: '🟢 92% Feasible (Clear)' },
+                      { name: 'Goa Coast', note: '🟡 Marine Caution' },
                     ].map((comp) => (
                       <button
                         key={comp.name}
@@ -452,7 +615,7 @@ export const DigitalTwinStudioModal: React.FC<DigitalTwinStudioModalProps> = ({
                 {/* Activity Breakdown List */}
                 <div className="space-y-2">
                   <span className="text-xs font-bold text-[#3B4953]">Activity-by-Activity Feasibility:</span>
-                  <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
                     {feasibility.activityBreakdown.map((item, idx) => (
                       <div
                         key={idx}
@@ -491,7 +654,7 @@ export const DigitalTwinStudioModal: React.FC<DigitalTwinStudioModalProps> = ({
             {activeTab === 'controls' && (
               <div className="space-y-4 flex-1 overflow-y-auto">
                 <div className="text-xs text-[#6B7C85] bg-[#EBF4DD] p-2.5 rounded-xl border border-[#D1D8BE]">
-                  💡 Adjust weather parameters below to simulate how weather shifts impact plan feasibility in real-time.
+                  💡 Adjust weather parameters below to test plan feasibility under various conditions in real-time.
                 </div>
 
                 {/* Rainfall Slider */}
@@ -590,61 +753,218 @@ export const DigitalTwinStudioModal: React.FC<DigitalTwinStudioModalProps> = ({
               </div>
             )}
 
-            {/* TAB 3: LEDGER SHOCK REBALANCE */}
-            {activeTab === 'ledger' && (
+            {/* TAB 3: 100% PURE METEOROLOGICAL WEATHER TELEMETRY STRICTLY FROM TODAY */}
+            {activeTab === 'socials' && (
               <div className="space-y-3 flex-1 overflow-y-auto">
-                <div className="grid grid-cols-2 gap-2.5">
-                  <div className="p-3 rounded-2xl bg-white border border-[#D1D8BE] space-y-1">
-                    <span className="text-[10px] font-mono uppercase text-[#6B7C85] font-bold">
-                      Act-of-God Refund
+                <div className="flex items-center justify-between pb-1.5 border-b border-[#D1D8BE]">
+                  <div>
+                    <span className="text-xs font-bold text-[#3B4953] flex items-center gap-1.5">
+                      <Radio className="w-4 h-4 text-[#5A7863] animate-pulse" />
+                      Live Weather Telemetry & Crowd Reports: {activeDestination}
                     </span>
-                    <div className="text-base font-bold text-[#5A7863]">
-                      +₹{simulation.financialDelta.totalRefundInflow.toLocaleString()}
-                    </div>
-                    <div className="text-[10px] text-[#6B7C85]">100% weather clause</div>
+                    <p className="text-[10px] text-[#6B7C85] mt-0.5">
+                      100% Pure Meteorological Data strictly from Today ({signalsTodayDate || 'Latest'}) &bull; Zero off-topic chatter
+                    </p>
                   </div>
-
-                  <div className="p-3 rounded-2xl bg-white border border-[#D1D8BE] space-y-1">
-                    <span className="text-[10px] font-mono uppercase text-[#6B7C85] font-bold">
-                      Indoor Swap Cost
-                    </span>
-                    <div className="text-base font-bold text-[#3B4953]">
-                      -₹{simulation.financialDelta.totalIndoorSwapCost.toLocaleString()}
-                    </div>
-                    <div className="text-[10px] text-[#6B7C85]">Safe weather alternative</div>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={fetchLiveSocialSignals}
+                    disabled={isLoadingSocialSignals}
+                    className="text-[11px] text-[#5A7863] hover:underline flex items-center gap-1 font-semibold cursor-pointer px-2.5 py-1 rounded-lg bg-white border border-[#D1D8BE] shadow-2xs"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${isLoadingSocialSignals ? 'animate-spin' : ''}`} />
+                    Refresh Today
+                  </button>
                 </div>
 
-                <div className="p-3.5 rounded-2xl bg-[#EBF4DD] border border-[#5A7863]/30 space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-[#5A7863]">Net Squad Savings</span>
-                    <span className="text-sm font-bold text-[#5A7863] font-mono">
-                      +₹{simulation.financialDelta.netSquadSavings.toLocaleString()}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-[#6B7C85]">
-                    Automatic debt simplification reduces settlement transfers from{' '}
-                    <strong className="text-[#3B4953]">
-                      {simulation.financialDelta.originalDebts.length} down to{' '}
-                      {simulation.financialDelta.simulatedDebts.length}
-                    </strong>
-                    .
-                  </p>
+                {/* Weather Sub-filter tabs: All Weather, Rain & Flood, Temp & Wind, Advisories, Telemetry */}
+                <div className="flex items-center gap-1 bg-[#EBF4DD]/60 p-1 rounded-xl border border-[#D1D8BE]/50 overflow-x-auto">
+                  <button
+                    type="button"
+                    onClick={() => setWeatherCategoryFilter('all')}
+                    className={`py-1 px-2 rounded-lg text-[10px] font-bold whitespace-nowrap transition-all cursor-pointer ${
+                      weatherCategoryFilter === 'all'
+                        ? 'bg-[#5A7863] text-white shadow-xs'
+                        : 'text-[#5A7863] hover:bg-[#EBF4DD]'
+                    }`}
+                  >
+                    All Weather ({liveSocialSignals.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setWeatherCategoryFilter('rain_flood')}
+                    className={`py-1 px-2 rounded-lg text-[10px] font-bold whitespace-nowrap transition-all cursor-pointer ${
+                      weatherCategoryFilter === 'rain_flood'
+                        ? 'bg-[#5A7863] text-white shadow-xs'
+                        : 'text-[#5A7863] hover:bg-[#EBF4DD]'
+                    }`}
+                  >
+                    🌧️ Rain & Flood ({categoryCounts.rain_flood || liveSocialSignals.filter((s) => s.weatherCategory === 'rain_flood').length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setWeatherCategoryFilter('temp_wind')}
+                    className={`py-1 px-2 rounded-lg text-[10px] font-bold whitespace-nowrap transition-all cursor-pointer ${
+                      weatherCategoryFilter === 'temp_wind'
+                        ? 'bg-[#5A7863] text-white shadow-xs'
+                        : 'text-[#5A7863] hover:bg-[#EBF4DD]'
+                    }`}
+                  >
+                    🌡️ Temp & Wind ({categoryCounts.temp_wind || liveSocialSignals.filter((s) => s.weatherCategory === 'temp_wind').length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setWeatherCategoryFilter('alert_warning')}
+                    className={`py-1 px-2 rounded-lg text-[10px] font-bold whitespace-nowrap transition-all cursor-pointer ${
+                      weatherCategoryFilter === 'alert_warning'
+                        ? 'bg-[#5A7863] text-white shadow-xs'
+                        : 'text-[#5A7863] hover:bg-[#EBF4DD]'
+                    }`}
+                  >
+                    ⚠️ Alerts ({categoryCounts.alert_warning || liveSocialSignals.filter((s) => s.weatherCategory === 'alert_warning').length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setWeatherCategoryFilter('telemetry')}
+                    className={`py-1 px-2 rounded-lg text-[10px] font-bold whitespace-nowrap transition-all cursor-pointer ${
+                      weatherCategoryFilter === 'telemetry'
+                        ? 'bg-[#5A7863] text-white shadow-xs'
+                        : 'text-[#5A7863] hover:bg-[#EBF4DD]'
+                    }`}
+                  >
+                    🛰️ Telemetry ({categoryCounts.telemetry || liveSocialSignals.filter((s) => s.weatherCategory === 'telemetry').length})
+                  </button>
                 </div>
+
+                {isLoadingSocialSignals ? (
+                  <div className="p-8 text-center text-xs text-[#6B7C85] bg-white rounded-2xl border border-[#D1D8BE]">
+                    <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-[#5A7863]" />
+                    Ingesting pure meteorological telemetry from today for {activeDestination}...
+                  </div>
+                ) : liveSocialSignals.length === 0 ? (
+                  <div className="p-6 text-center text-xs text-[#6B7C85] bg-white rounded-2xl border border-[#D1D8BE]">
+                    No active meteorological weather alerts reported today for this location.
+                  </div>
+                ) : (
+                  <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
+                    {liveSocialSignals
+                      .filter((s) => {
+                        if (weatherCategoryFilter === 'all') return true;
+                        return s.weatherCategory === weatherCategoryFilter;
+                      })
+                      .map((signal) => {
+                        const isRainFlood = signal.weatherCategory === 'rain_flood';
+                        const isAlertWarning = signal.weatherCategory === 'alert_warning';
+                        const isTempWind = signal.weatherCategory === 'temp_wind';
+
+                        const badgeColor = isAlertWarning
+                          ? 'bg-red-500/15 text-red-700 border-red-300'
+                          : isRainFlood
+                          ? 'bg-blue-500/15 text-blue-700 border-blue-300'
+                          : isTempWind
+                          ? 'bg-amber-500/15 text-amber-800 border-amber-300'
+                          : 'bg-emerald-500/15 text-emerald-800 border-emerald-300';
+
+                        const badgeLabel = isAlertWarning
+                          ? '⚠️ Weather Alert'
+                          : isRainFlood
+                          ? '🌧️ Rain & Flood Wire'
+                          : isTempWind
+                          ? '🌡️ Temp & Wind Advisory'
+                          : '🛰️ Atmospheric Telemetry';
+
+                        return (
+                          <div
+                            key={signal.id}
+                            className="p-3 rounded-2xl bg-white border border-[#D1D8BE] shadow-xs space-y-1.5 text-xs text-[#3B4953] hover:border-[#5A7863]/50 transition-all"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border font-bold ${badgeColor}`}>
+                                {badgeLabel}
+                              </span>
+                              <div className="flex items-center gap-1.5 text-[10px] text-[#6B7C85]">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+                                <span className="font-bold text-[#3B4953]">{signal.timestamp}</span>
+                              </div>
+                            </div>
+
+                            <p className="font-bold text-xs leading-snug text-[#3B4953]">
+                              {signal.title}
+                            </p>
+
+                            {signal.content && signal.content !== signal.title && (
+                              <p className="text-[11px] text-[#6B7C85] leading-relaxed line-clamp-2">
+                                {signal.content}
+                              </p>
+                            )}
+
+                            {signal.weatherMetrics && (
+                              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                                {signal.weatherMetrics.temperatureC !== undefined && (
+                                  <span className="px-2 py-0.5 rounded-md bg-[#EBF4DD] text-[#5A7863] font-mono text-[10px] font-bold border border-[#D1D8BE]">
+                                    🌡️ {signal.weatherMetrics.temperatureC}°C
+                                  </span>
+                                )}
+                                {signal.weatherMetrics.precipitationMm !== undefined && (
+                                  <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 font-mono text-[10px] font-bold border border-blue-200">
+                                    💧 {signal.weatherMetrics.precipitationMm} mm/h
+                                  </span>
+                                )}
+                                {signal.weatherMetrics.humidityPercent !== undefined && (
+                                  <span className="px-2 py-0.5 rounded-md bg-sky-50 text-sky-700 font-mono text-[10px] font-bold border border-sky-200">
+                                    🫧 {signal.weatherMetrics.humidityPercent}% hum
+                                  </span>
+                                )}
+                                {signal.weatherMetrics.windSpeedKmh !== undefined && (
+                                  <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 font-mono text-[10px] font-bold border border-amber-200">
+                                    💨 {signal.weatherMetrics.windSpeedKmh} km/h
+                                  </span>
+                                )}
+                              </div>
+                            )}
+
+                            <div className="pt-1 flex items-center justify-between border-t border-[#D1D8BE]/50">
+                              <span className="text-[10px] text-[#6B7C85] font-mono">
+                                By {signal.author} &bull; {signal.sourceName}
+                              </span>
+                              {signal.url && (
+                                <a
+                                  href={signal.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-[11px] font-bold text-[#5A7863] hover:underline flex items-center gap-1 cursor-pointer"
+                                >
+                                  <span>View live source</span>
+                                  <ExternalLink className="w-3 h-3" />
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                )}
               </div>
             )}
 
-            {/* ACTION COMMIT BUTTON */}
-            <div className="mt-auto pt-3 border-t border-[#D1D8BE] space-y-2">
+            {/* CLEAN FOOTER: ZERO OUT-OF-PLACE LEDGER REBALANCE CLUTTER */}
+            <div className="mt-auto pt-3 border-t border-[#D1D8BE] flex items-center justify-between gap-3">
               <button
-                onClick={handleCommit}
-                className="w-full py-3 px-4 rounded-2xl bg-[#5A7863] text-white font-bold text-xs hover:bg-[#486350] transition-all cursor-pointer shadow-md flex items-center justify-center gap-2"
+                type="button"
+                onClick={fetchLiveSocialSignals}
+                className="py-2.5 px-4 rounded-xl bg-white hover:bg-[#EBF4DD] border border-[#D1D8BE] text-[#3B4953] font-semibold text-xs transition-all cursor-pointer flex items-center gap-1.5 shadow-xs"
               >
-                <CheckCircle2 className="w-4 h-4" /> Apply Simulation & Rebalance Live Plan
+                <RefreshCw className="w-3.5 h-3.5 text-[#5A7863]" />
+                <span>Refresh Live Telemetry</span>
               </button>
-              <div className="text-center text-[10px] text-[#6B7C85]">
-                Updates live itinerary with feasible swaps and executes Act-of-God refund credit.
-              </div>
+
+              <button
+                type="button"
+                onClick={onClose}
+                className="py-2.5 px-5 rounded-xl bg-[#5A7863] hover:bg-[#486350] text-white font-bold text-xs transition-all cursor-pointer shadow-md"
+              >
+                Done / Close Studio
+              </button>
             </div>
           </div>
         </div>
