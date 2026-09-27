@@ -71,6 +71,7 @@ import { AuthSessionUser } from '@/lib/auth-service';
 import { UpiSetupModal } from '@/components/UpiSetupModal';
 import { ChaosDemoModal } from '@/components/ChaosDemoModal';
 import { WhatIfSimulatorModal } from '@/components/WhatIfSimulatorModal';
+import { DigitalTwinStudioModal } from '@/components/DigitalTwinStudioModal';
 import { ExplainBalanceModal } from '@/components/ExplainBalanceModal';
 import { RoomOptimizerModal } from '@/components/RoomOptimizerModal';
 import { SettlementReportModal } from '@/components/SettlementReportModal';
@@ -505,6 +506,7 @@ export default function Home() {
   const [isChaosRunning, setIsChaosRunning] = useState<boolean>(false);
 
   const [isWhatIfOpen, setIsWhatIfOpen] = useState<boolean>(false);
+  const [isDigitalTwinOpen, setIsDigitalTwinOpen] = useState<boolean>(false);
   const [isExplainBalanceOpen, setIsExplainBalanceOpen] = useState<boolean>(false);
   const [explainParticipantId, setExplainParticipantId] = useState<string>('p1');
   const [isRoomOptimizerOpen, setIsRoomOptimizerOpen] = useState<boolean>(false);
@@ -586,6 +588,52 @@ export default function Home() {
   const triggerToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 4000);
+  };
+
+  const handleCommitDigitalTwin = (action: any) => {
+    if (!action) return;
+    const { targetBookingIds = [], simulatedRefunds = [], recommendedSwapBookings = [] } = action;
+
+    // 1. Mark target bookings as cancelled and add indoor swap booking
+    setBookingsMap((prev) => {
+      const currentList = prev[currentTripId] || [];
+      const updated = currentList.map((b) =>
+        targetBookingIds.includes(b.id)
+          ? { ...b, status: 'cancelled' as const }
+          : b
+      );
+      const newBookings: Booking[] = (recommendedSwapBookings || []).map((swap: any, idx: number) => ({
+        id: `swap-b-${Date.now()}-${idx}`,
+        tripId: currentTripId,
+        title: swap.title,
+        cost: swap.cost,
+        category: swap.category || 'activity',
+        status: 'confirmed',
+        currency: 'INR',
+        paidById: participants[0]?.id || 'p1',
+        createdAt: new Date().toISOString(),
+      }));
+      return { ...prev, [currentTripId]: [...updated, ...newBookings] };
+    });
+
+    // 2. Record refund events
+    if (simulatedRefunds && simulatedRefunds.length > 0) {
+      setRefundsMap((prev) => {
+        const currentList = prev[currentTripId] || [];
+        const newRefunds: RefundEvent[] = simulatedRefunds.map((sr: any, idx: number) => ({
+          id: `ref-weather-${Date.now()}-${idx}`,
+          tripId: currentTripId,
+          bookingId: sr.bookingId,
+          amount: sr.amount,
+          refundDate: new Date().toISOString(),
+          reason: sr.reason || 'Weather Disruption (Digital Twin Simulation)',
+          policyApplied: 'act_of_god_100',
+        }));
+        return { ...prev, [currentTripId]: [...currentList, ...newRefunds] };
+      });
+    }
+
+    triggerToast('⚡ Digital Twin Simulation applied: weather refund recorded & indoor swap added.');
   };
 
   // Current active trip entities with robust null-safety fallback
@@ -2350,6 +2398,7 @@ export default function Home() {
                 onNavigateTab={setActiveTab}
                 onDismissAnomaly={handleDismissAnomaly}
                 onOpenWhatIf={() => setIsWhatIfOpen(true)}
+                onOpenDigitalTwin={() => setIsDigitalTwinOpen(true)}
                 onOpenChaosDemo={() => setIsChaosDemoOpen(true)}
                 onOpenExplainBalance={(pid) => {
                   setExplainParticipantId(pid);
@@ -2800,6 +2849,19 @@ export default function Home() {
         payments={payments}
         refunds={refunds}
         bookings={bookings}
+      />
+
+      {/* Digital Twin & Geospatial Impact Studio Modal (Hackcelestial 3.0) */}
+      <DigitalTwinStudioModal
+        isOpen={isDigitalTwinOpen}
+        onClose={() => setIsDigitalTwinOpen(false)}
+        destination={trip.destination || 'Goa'}
+        participants={participants}
+        bookings={bookings}
+        expenses={expenses}
+        payments={payments}
+        refunds={refunds}
+        onCommitSimulation={handleCommitDigitalTwin}
       />
 
       {/* Explain My Balance Grounded Assistant Modal (F8) */}

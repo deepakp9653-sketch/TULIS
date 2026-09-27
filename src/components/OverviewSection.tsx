@@ -70,6 +70,7 @@ export interface OverviewSectionProps {
   onDismissAnomaly?: (id: string) => void;
   onOpenExplainBalance?: (participantId: string) => void;
   onOpenWhatIf?: () => void;
+  onOpenDigitalTwin?: () => void;
   onOpenChaosDemo?: () => void;
   onOpenRoomOptimizer?: () => void;
   onOpenSettlementReport?: () => void;
@@ -97,6 +98,7 @@ export const OverviewSection: React.FC<OverviewSectionProps> = ({
   onNavigateTab,
   onDismissAnomaly,
   onOpenWhatIf,
+  onOpenDigitalTwin,
   onOpenRoomOptimizer,
   onOpenSettlementReport,
   onOpenGogoPlanner,
@@ -164,6 +166,16 @@ export const OverviewSection: React.FC<OverviewSectionProps> = ({
                   <ShieldCheck className="w-3.5 h-3.5" />
                   <span>Safety Active</span>
                 </span>
+              )}
+
+              {onOpenDigitalTwin && (
+                <button
+                  onClick={onOpenDigitalTwin}
+                  className="px-3 py-1 rounded-full text-xs font-semibold bg-[#EBF4DD] hover:bg-[#DDE8CD] text-[#5A7863] border border-[#5A7863]/40 flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                >
+                  <Compass className="w-3.5 h-3.5 text-[#5A7863]" />
+                  <span>🛰️ Digital Twin & Weather Studio</span>
+                </button>
               )}
             </div>
 
@@ -571,6 +583,16 @@ export const OverviewSection: React.FC<OverviewSectionProps> = ({
               className="px-3 py-1.5 rounded-xl bg-surface-inset hover:bg-surface-raised border border-surface-hairline text-xs font-semibold text-ink-secondary hover:text-ink-primary transition-colors cursor-pointer"
             >
               What-If Simulator
+            </button>
+          )}
+
+          {onOpenDigitalTwin && (
+            <button
+              onClick={onOpenDigitalTwin}
+              className="px-3.5 py-1.5 rounded-xl bg-[#5A7863] text-white hover:bg-[#486350] border border-[#5A7863] text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
+            >
+              <Compass className="w-3.5 h-3.5 text-[#FEF9C3]" />
+              <span>🛰️ Digital Twin Studio</span>
             </button>
           )}
 
