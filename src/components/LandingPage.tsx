@@ -7,16 +7,12 @@ import {
   CheckCircle2,
   ArrowRight,
   ShieldCheck,
-  Zap,
   Receipt,
   Users,
-  QrCode,
-  FileCheck,
   Plus,
   Key,
   TrendingUp,
   Calendar,
-  MapPin,
   Clock,
   RefreshCw,
   FileText,
@@ -54,14 +50,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   onOpenCorporateAuth,
   onOpenMyTrips,
 }) => {
-  // State for interactive debt netting sandbox
-  const [sandboxNet, setSandboxNet] = useState<boolean>(true);
-
   // State for interactive split primitive selector
   const [activeSplitTab, setActiveSplitTab] = useState<'rooms' | 'nights' | 'optout' | 'itemized' | 'organizer'>('rooms');
-
-  // State for interactive workspace preview tab
-  const [workspaceTab, setWorkspaceTab] = useState<'itinerary' | 'expenses' | 'roster'>('itinerary');
 
   return (
     <div className="relative min-h-screen bg-[#EBF4DD] text-[#3B4953] font-sans antialiased selection:bg-[#90AB8B]/40 overflow-x-clip">
@@ -254,240 +244,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </section>
 
       {/* ==========================================================================
-          03: ONE TRIP WORKSPACE: "Plan the journey. Money follows the journey."
-          Ratio: 50% Neumorphism / 20% Neo-Brutalism / 10% Glass / 20% Bento
-          Authentic PNGs: travel-route.png, waypoint.png, destination-marker.png, tree-small.png
-          ========================================================================== */}
-      <section id="workspace" className="relative py-28 sm:py-36 px-6 bg-[#EBF4DD] border-t border-[#3B4953]/10 scroll-mt-24 sm:scroll-mt-28">
-        {/* Genuine TULIS Asset: Travel Route ribbon sweeping behind the workspace */}
-        <div className="hidden lg:block absolute left-1/2 -translate-x-1/2 top-10 w-[90vw] max-w-[1200px] aspect-[2261/828] pointer-events-none opacity-40 z-0">
-          <Image
-            src="/tulis/travel/travel-route.png"
-            alt="Travel Journey Route"
-            fill
-            sizes="1200px"
-            className="object-contain"
-          />
-        </div>
-
-        {/* Genuine TULIS Assets: Waypoint and Destination Marker anchoring */}
-        <div className="hidden lg:block absolute left-[8%] top-32 w-9 h-9 pointer-events-none z-10 filter drop-shadow-sm">
-          <Image src="/tulis/travel/waypoint.png" alt="Waypoint" fill sizes="36px" className="object-contain" />
-        </div>
-        <div className="hidden lg:block absolute right-[9%] top-40 w-10 h-10 pointer-events-none z-10 filter drop-shadow-sm">
-          <Image src="/tulis/travel/destination-marker.png" alt="Destination Marker" fill sizes="40px" className="object-contain" />
-        </div>
-        <div className="hidden xl:block absolute right-4 bottom-20 w-16 aspect-[434/732] pointer-events-none z-10 filter drop-shadow-sm opacity-70">
-          <Image src="/tulis/nature/tree-small.png" alt="Pine Tree" fill sizes="64px" className="object-contain" />
-        </div>
-
-        <div className="relative z-10 max-w-7xl mx-auto space-y-12">
-          {/* Header */}
-          <div className="text-center max-w-3xl mx-auto space-y-4">
-            <h2 className="text-3xl sm:text-5xl font-black text-[#3B4953] tracking-tight leading-[1.12]">
-              One trip workspace.{' '}
-              <span className="text-[#5A7863]">Money follows the journey.</span>
-            </h2>
-            <p className="text-sm sm:text-base text-[#3B4953]/80 leading-relaxed font-normal max-w-2xl mx-auto">
-              Instead of entering expenses into an isolated ledger, TULIS links every rupee directly to your itinerary, participants, bookings, and dates.
-            </p>
-          </div>
-
-          {/* Double-Bezel Architecture Container (Doppelrand) */}
-          <div className="doppelrand-shell">
-            <div className="doppelrand-core p-5 sm:p-8 space-y-6">
-              {/* Top Workspace Header Bar */}
-              <div className="flex flex-wrap items-center justify-between gap-4 pb-5 border-b border-[#3B4953]/15">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#5A7863] animate-pulse" />
-                    <span className="text-[10px] font-mono uppercase tracking-widest text-[#5A7863] font-bold">
-                      Connected Trip Workspace
-                    </span>
-                  </div>
-                  <h3 className="text-xl sm:text-2xl font-black text-[#3B4953]">
-                    Goa Coastal Traverse : Vagator to Palolem
-                  </h3>
-                  <div className="flex flex-wrap items-center gap-3 text-xs text-[#3B4953]/70 font-mono">
-                    <span className="flex items-center gap-1">
-                      <Calendar className="w-3.5 h-3.5 text-[#5A7863]" /> Oct 14-20
-                    </span>
-                    <span>•</span>
-                    <span className="flex items-center gap-1">
-                      <MapPin className="w-3.5 h-3.5 text-[#5A7863]" /> 4 Waypoints
-                    </span>
-                    <span>•</span>
-                    <span className="flex items-center gap-1">
-                      <Users className="w-3.5 h-3.5 text-[#5A7863]" /> 5 Travelers
-                    </span>
-                  </div>
-                </div>
-
-                {/* View Switcher Tabs (Neumorphic Inset Selector) */}
-                <div className="p-1 rounded-2xl neu-inset flex items-center gap-1">
-                  {[
-                    { id: 'itinerary', label: 'Itinerary Swimlanes' },
-                    { id: 'expenses', label: 'Connected Expenses' },
-                    { id: 'roster', label: 'Squad Net Positions' },
-                  ].map((tab) => (
-                    <button
-                      key={tab.id}
-                      onClick={() => setWorkspaceTab(tab.id as any)}
-                      className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                        workspaceTab === tab.id
-                          ? 'neu-raised text-[#3B4953]'
-                          : 'text-[#3B4953]/60 hover:text-[#3B4953]'
-                      }`}
-                    >
-                      {tab.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Dynamic Content Body */}
-              {workspaceTab === 'itinerary' && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                  {/* Day 1 */}
-                  <div className="p-5 rounded-2xl neu-inset-sm space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="neo-accent-pill px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-[#EBF4DD]">
-                        DAY 01
-                      </span>
-                      <span className="text-[11px] font-mono text-[#5A7863] font-semibold">₹32,000 Linked</span>
-                    </div>
-                    <h4 className="font-bold text-sm text-[#3B4953]">Vagator Cliffside Villa</h4>
-                    <p className="text-xs text-[#3B4953]/70">5 Guests • 2 Nights • Room-tier split applied</p>
-                    <div className="p-2.5 rounded-xl bg-white/60 text-[11px] font-mono text-[#3B4953]/80 space-y-1">
-                      <div className="flex justify-between">
-                        <span>Master Suite (2p):</span>
-                        <span>₹18,000</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Standard Twin (3p):</span>
-                        <span>₹14,000</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Day 2 */}
-                  <div className="p-5 rounded-2xl neu-inset-sm space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="neo-accent-pill px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-[#EBF4DD]">
-                        DAY 02
-                      </span>
-                      <span className="text-[11px] font-mono text-[#5A7863] font-semibold">₹8,000 Linked</span>
-                    </div>
-                    <h4 className="font-bold text-sm text-[#3B4953]">Morjim Catamaran Sailing</h4>
-                    <p className="text-xs text-[#3B4953]/70">4 Attendees • 1 Opt-out (Arjun skipped)</p>
-                    <div className="p-2.5 rounded-xl bg-white/60 text-[11px] font-mono text-[#3B4953]/80 space-y-1">
-                      <div className="flex justify-between">
-                        <span>Split:</span>
-                        <span>₹2,000 × 4 pax</span>
-                      </div>
-                      <div className="flex justify-between text-[#5A7863]">
-                        <span>Arjun charged:</span>
-                        <span className="font-bold">₹0.00</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Day 3 */}
-                  <div className="p-5 rounded-2xl neu-inset-sm space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="neo-accent-pill px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-[#EBF4DD]">
-                        DAY 03
-                      </span>
-                      <span className="text-[11px] font-mono text-[#5A7863] font-semibold">₹11,400 Linked</span>
-                    </div>
-                    <h4 className="font-bold text-sm text-[#3B4953]">Thalassa Sunset Feast</h4>
-                    <p className="text-xs text-[#3B4953]/70">Itemized line-item allocation</p>
-                    <div className="p-2.5 rounded-xl bg-white/60 text-[11px] font-mono text-[#3B4953]/80 space-y-1">
-                      <div className="flex justify-between">
-                        <span>Shared Food:</span>
-                        <span>₹6,200 (Equal)</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Cocktail Bar:</span>
-                        <span>₹5,200 (Drinkers only)</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {workspaceTab === 'expenses' && (
-                <div className="space-y-3">
-                  {[
-                    { title: 'Villa Rental Advance', payer: 'Vikram Mehta paid', category: 'Lodging', date: 'Oct 14', amount: '₹32,000.00', badge: 'Room-Tier Split', proof: true },
-                    { title: 'Morjim Catamaran Booking', payer: 'Priya Patel paid', category: 'Activities', date: 'Oct 15', amount: '₹8,000.00', badge: 'Opt-In Split (4 pax)', proof: true },
-                    { title: 'Thalassa Sunset Feast', payer: 'Rohan Sharma paid', category: 'Food & Dining', date: 'Oct 16', amount: '₹11,400.00', badge: 'Itemized Split', proof: true },
-                    { title: 'North Goa Self-Drive Thar', payer: 'Sneha Rao paid', category: 'Transport', date: 'Oct 14-20', amount: '₹18,500.00', badge: 'Equal Split', proof: true },
-                  ].map((exp, idx) => (
-                    <div key={idx} className="p-3.5 rounded-2xl bg-white/60 border border-[#3B4953]/15 flex flex-wrap items-center justify-between gap-3 text-xs">
-                      <div className="space-y-0.5">
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-sm text-[#3B4953]">{exp.title}</span>
-                          {exp.proof && (
-                            <span className="px-1.5 py-0.5 rounded bg-[#5A7863]/12 text-[#5A7863] text-[9px] font-mono flex items-center gap-1 font-semibold">
-                              <FileCheck className="w-3 h-3" /> Receipt Verified
-                            </span>
-                          )}
-                        </div>
-                        <span className="text-[#3B4953]/70 font-mono text-[11px]">{exp.payer} • {exp.date} • {exp.category}</span>
-                      </div>
-                      <div className="text-right">
-                        <span className="font-mono font-bold text-sm text-[#3B4953] block">{exp.amount}</span>
-                        <span className="text-[10px] font-mono text-[#5A7863] font-semibold">{exp.badge}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {workspaceTab === 'roster' && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-                  {[
-                    { name: 'Vikram Mehta', paid: '₹32,000', consumed: '₹17,800', net: '+₹14,200', status: 'Surplus' },
-                    { name: 'Priya Patel', paid: '₹8,000', consumed: '₹14,250', net: '-₹6,250', status: 'Owes' },
-                    { name: 'Rohan Sharma', paid: '₹11,400', consumed: '₹16,250', net: '-₹4,850', status: 'Owes' },
-                    { name: 'Sneha Rao', paid: '₹18,500', consumed: '₹15,400', net: '+₹3,100', status: 'Surplus' },
-                    { name: 'Arjun Nair', paid: '₹0', consumed: '₹6,200', net: '-₹6,200', status: 'Owes (Prorated)' },
-                  ].map((person, idx) => (
-                    <div key={idx} className="p-4 rounded-2xl neu-inset-sm space-y-2 text-xs">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-[#3B4953] truncate">{person.name}</span>
-                        <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded-full font-bold ${
-                          person.status === 'Surplus' ? 'bg-[#5A7863]/15 text-[#5A7863]' : 'bg-rose-500/15 text-rose-700'
-                        }`}>
-                          {person.status}
-                        </span>
-                      </div>
-                      <div className="font-mono text-[10px] text-[#3B4953]/70 space-y-0.5 pt-1 border-t border-[#3B4953]/10">
-                        <div className="flex justify-between"><span>Fronted:</span><span>{person.paid}</span></div>
-                        <div className="flex justify-between"><span>Share:</span><span>{person.consumed}</span></div>
-                      </div>
-                      <div className="pt-1 flex items-baseline justify-between font-mono font-bold">
-                        <span className="text-[10px] text-[#3B4953]/60">Net Position:</span>
-                        <span className={person.net.startsWith('+') ? 'text-[#5A7863]' : 'text-rose-700'}>
-                          {person.net}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ==========================================================================
           04: SPLIT FAIRLY: "Everyone's share is visible."
           Ratio: 50% Neumorphism / 20% Neo-Brutalism / 10% Glass / 20% Bento
           Authentic PNGs: backpack.png, luggage.png, location-pin.png
           ========================================================================== */}
-      <section id="split-fairly" className="relative py-28 sm:py-36 px-6 max-w-7xl mx-auto scroll-mt-24 sm:scroll-mt-28">
+      <section id="split-fairly" className="relative py-28 sm:py-36 px-6 max-w-7xl mx-auto scroll-mt-24 sm:scroll-mt-28 border-t border-[#3B4953]/10">
         {/* Genuine TULIS Assets: Backpack and Luggage partially outside containers */}
         <div className="hidden lg:block absolute -left-8 bottom-16 w-[130px] aspect-[962/1152] pointer-events-none z-10 filter drop-shadow-md -rotate-6">
           <Image
@@ -953,125 +714,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </section>
 
       {/* ==========================================================================
-          07: SETTLEMENT: "Complex obligations become simple settlement."
-          Ratio: 50% Neumorphism / 20% Neo-Brutalism / 10% Glass / 20% Bento
-          Authentic PNGs: airplane.png, destination-marker.png
-          ========================================================================== */}
-      <section id="settlement" className="relative py-28 sm:py-36 px-6 bg-[#EBF4DD] border-t border-[#3B4953]/10 scroll-mt-24 sm:scroll-mt-28">
-        {/* Genuine TULIS Asset: Airplane soaring across sky toward resolution */}
-        <div className="hidden lg:block absolute left-[15%] top-16 w-[160px] aspect-[1444/536] pointer-events-none z-10 filter drop-shadow-sm">
-          <Image
-            src="/tulis/travel/airplane.png"
-            alt="Airplane Reaching Destination"
-            fill
-            sizes="160px"
-            className="object-contain"
-          />
-        </div>
-
-        <div className="max-w-7xl mx-auto space-y-12">
-          {/* Header */}
-          <div className="text-center max-w-3xl mx-auto space-y-4">
-            <h2 className="text-3xl sm:text-5xl font-black text-[#3B4953] tracking-tight leading-[1.12]">
-              Complex obligations.{' '}
-              <span className="text-[#5A7863]">Simple settlement.</span>
-            </h2>
-            <p className="text-sm sm:text-base text-[#3B4953]/80 leading-relaxed font-normal max-w-2xl mx-auto">
-              Traditional apps tell everyone to pay everyone else. TULIS runs a greedy graph-netting algorithm that compresses the entire squad&apos;s IOUs into the absolute minimum number of UPI transfers.
-            </p>
-          </div>
-
-          {/* Interactive Netting Sandbox Console (Doppelrand Architecture) */}
-          <div className="doppelrand-shell">
-            <div className="doppelrand-core p-6 sm:p-8 space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-[#3B4953]/15">
-                <div className="space-y-1">
-                  <span className="text-[10px] font-mono uppercase tracking-widest text-[#5A7863] font-bold block">
-                    Algorithm Sandbox Mode
-                  </span>
-                  <h3 className="text-base sm:text-lg font-bold text-[#3B4953]">
-                    {sandboxNet
-                      ? 'Compressed Graph Topology (3 Optimized Transfers)'
-                      : 'Raw Tangled Network (6 Redundant Pairwise Debts)'}
-                  </h3>
-                </div>
-
-                {/* Execution Toggle Buttons */}
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setSandboxNet(!sandboxNet)}
-                    className="neu-btn px-4 py-2 rounded-xl text-xs font-bold text-[#3B4953] hover:text-[#5A7863] flex items-center gap-2 cursor-pointer"
-                  >
-                    <Zap className="w-3.5 h-3.5 text-[#5A7863]" />
-                    <span>{sandboxNet ? 'View Raw Pairwise Tangled Debts' : 'Execute Greedy Graph Netting'}</span>
-                  </button>
-
-                  {sandboxNet && (
-                    <button
-                      onClick={onEnterApp}
-                      className="neu-btn-primary px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-sm"
-                    >
-                      <QrCode className="w-3.5 h-3.5" />
-                      <span>Settle via UPI</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Debt Cards Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {(sandboxNet
-                  ? [
-                      { from: 'Vikram Mehta', to: 'Rohan Sharma', amount: '₹9,650.00', note: 'Single UPI scan completes full obligation' },
-                      { from: 'Priya Patel', to: 'Rohan Sharma', amount: '₹4,850.00', note: 'Villa & activity balance resolved' },
-                      { from: 'Arjun Nair', to: 'Sneha Rao', amount: '₹3,200.00', note: 'Prorated early checkout closed' },
-                    ]
-                  : [
-                      { from: 'Priya Patel', to: 'Rohan Sharma', amount: '₹3,200.00', note: 'Raw pairwise loan' },
-                      { from: 'Vikram Mehta', to: 'Rohan Sharma', amount: '₹6,400.00', note: 'Raw pairwise loan' },
-                      { from: 'Priya Patel', to: 'Arjun Nair', amount: '₹1,650.00', note: 'Raw pairwise loan' },
-                      { from: 'Vikram Mehta', to: 'Arjun Nair', amount: '₹3,250.00', note: 'Raw pairwise loan' },
-                      { from: 'Sneha Rao', to: 'Rohan Sharma', amount: '₹4,900.00', note: 'Raw pairwise loan' },
-                      { from: 'Arjun Nair', to: 'Sneha Rao', amount: '₹8,100.00', note: 'Raw pairwise loan' },
-                    ]
-                ).map((debt, idx) => (
-                  <div key={idx} className="p-4 rounded-2xl neu-inset-sm space-y-2 text-xs">
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-rose-700">{debt.from}</span>
-                      <ArrowRight className="w-3.5 h-3.5 text-[#5A7863]" />
-                      <span className="font-semibold text-[#5A7863]">{debt.to}</span>
-                    </div>
-                    <div className="flex items-baseline justify-between pt-1">
-                      <span className="font-mono font-black text-base text-[#3B4953]">{debt.amount}</span>
-                      <span className="text-[10px] font-mono text-[#5A7863] font-semibold">UPI Ready</span>
-                    </div>
-                    <p className="text-[10px] text-[#3B4953]/60 italic">{debt.note}</p>
-                  </div>
-                ))}
-              </div>
-
-              {/* Zero-Sum Assurance Badge */}
-              <div className="p-3.5 rounded-xl bg-white/70 border border-[#3B4953]/15 flex flex-wrap items-center justify-between gap-3 text-xs">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-[#5A7863]" />
-                  <span className="font-semibold text-[#3B4953]">Zero-Sum Ledger Verified: Sum of all credits equals sum of all debits exactly.</span>
-                </div>
-                <div className="flex items-center gap-2 font-mono text-[11px]">
-                  <span className="text-[#3B4953]/60">Net Drift:</span>
-                  <span className="font-bold text-[#5A7863]">₹0.00</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ==========================================================================
           08: TRUST / AUDIT: "Every number has a trail."
           Ratio: 50% Neumorphism / 20% Neo-Brutalism / 10% Glass / 20% Bento
           Authentic PNGs: rock-01.png, rock-03.png
           ========================================================================== */}
-      <section id="audit" className="relative py-28 sm:py-36 px-6 max-w-7xl mx-auto scroll-mt-24 sm:scroll-mt-28">
+      <section id="audit" className="relative py-28 sm:py-36 px-6 max-w-7xl mx-auto scroll-mt-24 sm:scroll-mt-28 border-t border-[#3B4953]/10">
         {/* Genuine TULIS Assets: Grounding rocks in foreground */}
         <div className="hidden lg:block absolute left-4 bottom-12 w-24 aspect-[487/423] pointer-events-none z-10 filter drop-shadow-sm">
           <Image src="/tulis/nature/rock-01.png" alt="Audit Rock" fill sizes="96px" className="object-contain" />

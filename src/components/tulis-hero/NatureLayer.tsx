@@ -53,7 +53,7 @@ export const NatureLayer: React.FC<LayerProps> = ({
         />
       </div>
 
-      {/* Small Tree midground */}
+      {/* Small Tree midground left */}
       <div
         className="absolute bottom-[10%] left-[11%] sm:left-[14%] w-[90px] sm:w-[130px] lg:w-[160px] aspect-[716/973] will-change-transform"
         style={{
@@ -67,6 +67,114 @@ export const NatureLayer: React.FC<LayerProps> = ({
           alt="Tree Small"
           fill
           sizes="160px"
+          className="object-contain pointer-events-none"
+        />
+      </div>
+
+      {/* Mountain Slope Left Tree (Small) */}
+      <div
+        className="absolute bottom-[22%] left-[17%] w-[65px] sm:w-[95px] lg:w-[120px] aspect-[716/973] will-change-transform filter drop-shadow-[0_4px_8px_rgba(30,45,35,0.15)]"
+        style={{
+          transform: `translate3d(${mouseOffset.x * 3.5}px, ${natureY * 0.7 + mouseOffset.y * 4}px, 0)`,
+          opacity: natureOpacity,
+          zIndex: 8,
+        }}
+      >
+        <Image
+          src="/tulis/nature/tree-small.png"
+          alt="Mountain Tree Left"
+          fill
+          sizes="120px"
+          className="object-contain pointer-events-none"
+        />
+      </div>
+
+      {/* Mountain Slope Left Ridge Tree (Large) */}
+      <div
+        className="absolute bottom-[18%] left-[23%] w-[70px] sm:w-[100px] lg:w-[125px] aspect-[544/1173] will-change-transform filter drop-shadow-[0_4px_8px_rgba(30,45,35,0.15)]"
+        style={{
+          transform: `translate3d(${mouseOffset.x * 4}px, ${natureY * 0.75 + mouseOffset.y * 4.5}px, 0)`,
+          opacity: natureOpacity,
+          zIndex: 8,
+        }}
+      >
+        <Image
+          src="/tulis/nature/tree-large.png"
+          alt="Mountain Ridge Tree Left"
+          fill
+          sizes="125px"
+          className="object-contain pointer-events-none"
+        />
+      </div>
+
+      {/* Mountain High Ridge Center-Left Tree (Small - nestled in distant fold) */}
+      <div
+        className="absolute bottom-[28%] left-[33%] w-[45px] sm:w-[65px] lg:w-[85px] aspect-[716/973] will-change-transform opacity-90"
+        style={{
+          transform: `translate3d(${mouseOffset.x * 2.5}px, ${natureY * 0.6 + mouseOffset.y * 3.5}px, 0)`,
+          opacity: natureOpacity * 0.9,
+          zIndex: 6,
+        }}
+      >
+        <Image
+          src="/tulis/nature/tree-small.png"
+          alt="Mountain High Ridge Tree"
+          fill
+          sizes="85px"
+          className="object-contain pointer-events-none brightness-95"
+        />
+      </div>
+
+      {/* Mountain Right Slope Tree (Large) */}
+      <div
+        className="absolute bottom-[15%] right-[22%] w-[80px] sm:w-[115px] lg:w-[145px] aspect-[544/1173] will-change-transform filter drop-shadow-[0_4px_8px_rgba(30,45,35,0.15)]"
+        style={{
+          transform: `translate3d(${mouseOffset.x * 4}px, ${natureY * 0.75 + mouseOffset.y * 5}px, 0)`,
+          opacity: natureOpacity,
+          zIndex: 8,
+        }}
+      >
+        <Image
+          src="/tulis/nature/tree-large.png"
+          alt="Mountain Tree Right"
+          fill
+          sizes="145px"
+          className="object-contain pointer-events-none"
+        />
+      </div>
+
+      {/* Mountain High Ridge Right Tree (Small) */}
+      <div
+        className="absolute bottom-[26%] right-[26%] w-[50px] sm:w-[75px] lg:w-[95px] aspect-[716/973] will-change-transform filter drop-shadow-[0_4px_8px_rgba(30,45,35,0.15)]"
+        style={{
+          transform: `translate3d(${mouseOffset.x * 3}px, ${natureY * 0.65 + mouseOffset.y * 4}px, 0)`,
+          opacity: natureOpacity,
+          zIndex: 8,
+        }}
+      >
+        <Image
+          src="/tulis/nature/tree-small.png"
+          alt="Mountain High Ridge Tree Right"
+          fill
+          sizes="95px"
+          className="object-contain pointer-events-none"
+        />
+      </div>
+
+      {/* Mountain Outer Right Slope Tree (Small) */}
+      <div
+        className="absolute bottom-[18%] right-[8%] w-[65px] sm:w-[90px] lg:w-[115px] aspect-[716/973] will-change-transform filter drop-shadow-[0_4px_8px_rgba(30,45,35,0.15)]"
+        style={{
+          transform: `translate3d(${mouseOffset.x * 3.5}px, ${natureY * 0.7 + mouseOffset.y * 4.5}px, 0)`,
+          opacity: natureOpacity,
+          zIndex: 8,
+        }}
+      >
+        <Image
+          src="/tulis/nature/tree-small.png"
+          alt="Mountain Tree Far Right"
+          fill
+          sizes="115px"
           className="object-contain pointer-events-none"
         />
       </div>

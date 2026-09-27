@@ -82,7 +82,7 @@ export const HeroScene: React.FC<HeroSceneProps> = ({
         className="absolute inset-x-0 bottom-0 h-28 pointer-events-none transition-opacity duration-300"
         style={{
           opacity: Math.max(0, (progress - 0.70) * 3.33),
-          background: 'linear-gradient(to bottom, rgba(235, 244, 221, 0) 0%, #EBF4DD 100%)',
+          background: 'linear-gradient(to bottom, rgba(230, 233, 184, 0) 0%, #E6E9B8 100%)',
           zIndex: 25,
         }}
       />

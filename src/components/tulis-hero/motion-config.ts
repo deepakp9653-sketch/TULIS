@@ -4,7 +4,7 @@
  */
 
 export const HERO_COLORS = {
-  cream: '#EBF4DD',
+  cream: '#E6E9B8',
   sage: '#90AB8B',
   deepSage: '#5A7863',
   darkSlate: '#3B4953',
@@ -39,7 +39,7 @@ export const HERO_CONFIG = {
 
   /** Logo transformation values */
   logo: {
-    startScale: 1,
+    startScale: 1.25,
     endScaleDesktop: 0.22,
     endScaleMobile: 0.26,
     startTopPercent: 39, // Dominant focal point around 38-40% from top

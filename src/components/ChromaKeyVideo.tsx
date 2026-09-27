@@ -37,6 +37,7 @@ export const ChromaKeyVideo: React.FC<ChromaKeyVideoProps> = ({
 
   const isVisibleRef = useRef(false);
   const animIdRef = useRef<number>(0);
+  const videoCallbackIdRef = useRef<number>(0);
   const isLoadedRef = useRef(false);
 
   useEffect(() => {
@@ -64,10 +65,12 @@ export const ChromaKeyVideo: React.FC<ChromaKeyVideoProps> = ({
           alpha: true,
           premultipliedAlpha: false,
           antialias: true,
+          powerPreference: 'high-performance',
         }) ||
         (canvas.getContext('experimental-webgl', {
           alpha: true,
           premultipliedAlpha: false,
+          powerPreference: 'high-performance',
         }) as WebGLRenderingContext | null);
     } catch {
       gl = null;
@@ -185,69 +188,100 @@ export const ChromaKeyVideo: React.FC<ChromaKeyVideoProps> = ({
       ctx2d = canvas.getContext('2d');
     }
 
+    const hasVideoFrameCallback =
+      typeof (video as any).requestVideoFrameCallback === 'function';
+
+    const drawFrame = () => {
+      if (!video || video.readyState < 2) return;
+
+      const targetW = video.videoWidth || 960;
+      const targetH = video.videoHeight || 540;
+
+      if (canvas.width !== targetW || canvas.height !== targetH) {
+        canvas.width = targetW;
+        canvas.height = targetH;
+        if (gl) {
+          gl.viewport(0, 0, targetW, targetH);
+        }
+        if (!isLoadedRef.current) {
+          isLoadedRef.current = true;
+          setIsLoaded(true);
+        }
+      }
+
+      if (gl && program && texture) {
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        if (!isLoadedRef.current) {
+          isLoadedRef.current = true;
+          setIsLoaded(true);
+        }
+      } else if (ctx2d) {
+        ctx2d.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const imgData = ctx2d.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imgData.data;
+        const thresh255 = threshold * 255;
+        const smooth255 = smoothing * 255;
+        const spill255 = spillThreshold * 255;
+
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i];
+          const g = data[i + 1];
+          const b = data[i + 2];
+          const maxRB = r > b ? r : b;
+          const diff = g - maxRB;
+
+          if (diff > thresh255 + smooth255) {
+            data[i + 3] = 0;
+          } else if (diff > thresh255) {
+            const factor = 1 - (diff - thresh255) / smooth255;
+            data[i + 3] = Math.round(data[i + 3] * factor);
+            data[i + 1] = maxRB;
+          } else if (diff > spill255) {
+            const spillFactor = (diff - spill255) / Math.max(1, thresh255 - spill255);
+            data[i + 1] = Math.round(g * (1 - spillFactor) + maxRB * spillFactor);
+          }
+        }
+        ctx2d.putImageData(imgData, 0, 0);
+        if (!isLoadedRef.current) {
+          isLoadedRef.current = true;
+          setIsLoaded(true);
+        }
+      }
+    };
+
     const render = () => {
-      // If component is off-screen, completely halt execution
       if (!isVisibleRef.current) {
         animIdRef.current = 0;
         return;
       }
 
-      if (video && video.readyState >= 2) {
-        if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
-          canvas.width = video.videoWidth || 1920;
-          canvas.height = video.videoHeight || 1080;
-          if (gl) {
-            gl.viewport(0, 0, canvas.width, canvas.height);
-          }
-          if (!isLoadedRef.current) {
-            isLoadedRef.current = true;
-            setIsLoaded(true);
-          }
-        }
-
-        if (gl && program && texture) {
-          gl.bindTexture(gl.TEXTURE_2D, texture);
-          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
-          gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-        } else if (ctx2d) {
-          ctx2d.drawImage(video, 0, 0, canvas.width, canvas.height);
-          const imgData = ctx2d.getImageData(0, 0, canvas.width, canvas.height);
-          const data = imgData.data;
-          const thresh255 = threshold * 255;
-          const smooth255 = smoothing * 255;
-          const spill255 = spillThreshold * 255;
-
-          for (let i = 0; i < data.length; i += 4) {
-            const r = data[i];
-            const g = data[i + 1];
-            const b = data[i + 2];
-            const maxRB = r > b ? r : b;
-            const diff = g - maxRB;
-
-            if (diff > thresh255 + smooth255) {
-              data[i + 3] = 0;
-            } else if (diff > thresh255) {
-              const factor = 1 - (diff - thresh255) / smooth255;
-              data[i + 3] = Math.round(data[i + 3] * factor);
-              data[i + 1] = maxRB;
-            } else if (diff > spill255) {
-              const spillFactor = (diff - spill255) / Math.max(1, thresh255 - spill255);
-              data[i + 1] = Math.round(g * (1 - spillFactor) + maxRB * spillFactor);
-            }
-          }
-          ctx2d.putImageData(imgData, 0, 0);
-        }
-      }
+      drawFrame();
 
       if (!prefersReducedMotion || !isLoadedRef.current) {
-        animIdRef.current = requestAnimationFrame(render);
+        if (hasVideoFrameCallback && !video.paused) {
+          videoCallbackIdRef.current = (video as any).requestVideoFrameCallback(() => {
+            render();
+          });
+        } else {
+          animIdRef.current = requestAnimationFrame(render);
+        }
       } else {
         animIdRef.current = 0;
       }
     };
 
     const startRendering = () => {
-      if (!animIdRef.current) {
+      if (hasVideoFrameCallback) {
+        if (!videoCallbackIdRef.current && !video.paused) {
+          videoCallbackIdRef.current = (video as any).requestVideoFrameCallback(() => {
+            render();
+          });
+        } else if (!animIdRef.current) {
+          animIdRef.current = requestAnimationFrame(render);
+        }
+      } else if (!animIdRef.current) {
         animIdRef.current = requestAnimationFrame(render);
       }
     };
@@ -257,6 +291,10 @@ export const ChromaKeyVideo: React.FC<ChromaKeyVideoProps> = ({
         cancelAnimationFrame(animIdRef.current);
         animIdRef.current = 0;
       }
+      if (videoCallbackIdRef.current && hasVideoFrameCallback) {
+        (video as any).cancelVideoFrameCallback(videoCallbackIdRef.current);
+        videoCallbackIdRef.current = 0;
+      }
     };
 
     const handleVideoReady = () => {
@@ -264,6 +302,7 @@ export const ChromaKeyVideo: React.FC<ChromaKeyVideoProps> = ({
         isLoadedRef.current = true;
         setIsLoaded(true);
       }
+      drawFrame();
       if (isVisibleRef.current && autoPlay && video.paused) {
         video.play().catch(() => {});
       }
@@ -271,13 +310,15 @@ export const ChromaKeyVideo: React.FC<ChromaKeyVideoProps> = ({
     };
 
     video.addEventListener('loadeddata', handleVideoReady);
+    video.addEventListener('canplay', handleVideoReady);
     video.addEventListener('play', startRendering);
 
     if (video.readyState >= 2) {
       handleVideoReady();
     }
 
-    // High-performance IntersectionObserver: pauses video & WebGL rendering when outside viewport
+    // High-performance IntersectionObserver with generous rootMargin:
+    // Primes and plays the video 400px before scrolling into viewport
     const observer = new IntersectionObserver(
       ([entry]) => {
         const intersecting = entry.isIntersecting;
@@ -296,7 +337,7 @@ export const ChromaKeyVideo: React.FC<ChromaKeyVideoProps> = ({
         }
       },
       {
-        rootMargin: '200px 0px 200px 0px',
+        rootMargin: '400px 0px 400px 0px',
         threshold: 0.01,
       }
     );
@@ -307,6 +348,7 @@ export const ChromaKeyVideo: React.FC<ChromaKeyVideoProps> = ({
       observer.disconnect();
       stopRendering();
       video.removeEventListener('loadeddata', handleVideoReady);
+      video.removeEventListener('canplay', handleVideoReady);
       video.removeEventListener('play', startRendering);
 
       // Clean GPU memory
@@ -329,7 +371,11 @@ export const ChromaKeyVideo: React.FC<ChromaKeyVideoProps> = ({
       className={`relative inline-block overflow-hidden ${className}`}
       style={style}
     >
-      {/* Hidden source video element with performance-friendly attributes */}
+      {/* 
+        Source video element:
+        Kept in layout with absolute 1px opacity-0 so browser decoders NEVER throttle it (unlike display:none / hidden)
+        preload="auto" ensures initial keyframes are instantly available without scroll buffering lag.
+      */}
       <video
         ref={videoRef}
         src={src}
@@ -338,8 +384,8 @@ export const ChromaKeyVideo: React.FC<ChromaKeyVideoProps> = ({
         muted={muted}
         playsInline={playsInline}
         crossOrigin="anonymous"
-        preload="metadata"
-        className="hidden"
+        preload="auto"
+        className="absolute top-0 left-0 w-[1px] h-[1px] opacity-0 pointer-events-none -z-50"
         aria-hidden="true"
       />
 
@@ -348,7 +394,7 @@ export const ChromaKeyVideo: React.FC<ChromaKeyVideoProps> = ({
         ref={canvasRef}
         role="img"
         aria-label={ariaLabel}
-        className="w-full h-full object-contain pointer-events-none select-none transition-opacity duration-300"
+        className="w-full h-full object-contain pointer-events-none select-none transition-opacity duration-200"
         style={{
           opacity: isLoaded ? 1 : 0,
         }}

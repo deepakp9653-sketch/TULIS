@@ -70,12 +70,6 @@ export const TulisHeader: React.FC<TulisHeaderProps> = ({
               The Problem
             </a>
             <a
-              href="#workspace"
-              className="hover:text-[#5A7863] transition-colors py-1 px-2 rounded-lg hover:bg-white/40"
-            >
-              Workspace
-            </a>
-            <a
               href="#split-fairly"
               className="hover:text-[#5A7863] transition-colors py-1 px-2 rounded-lg hover:bg-white/40"
             >
@@ -92,12 +86,6 @@ export const TulisHeader: React.FC<TulisHeaderProps> = ({
               className="hover:text-[#5A7863] transition-colors py-1 px-2 rounded-lg hover:bg-white/40"
             >
               Balances
-            </a>
-            <a
-              href="#settlement"
-              className="hover:text-[#5A7863] transition-colors py-1 px-2 rounded-lg hover:bg-white/40"
-            >
-              Settlement
             </a>
             <a
               href="#audit"

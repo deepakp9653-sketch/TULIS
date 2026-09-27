@@ -11,12 +11,12 @@ html {
 
 :root {
   /* TULIS Brand Palette */
-  --tulis-cream: #EBF4DD;
+  --tulis-cream: #E6E9B8;
   --tulis-sage: #90AB8B;
   --tulis-deep-sage: #5A7863;
   --tulis-slate: #3B4953;
 
-  /* Neumorphic Shadow Tokens for #EBF4DD Base Surface */
+  /* Neumorphic Shadow Tokens for #E6E9B8 Base Surface */
   --tulis-neu-raised: 8px 8px 20px rgba(59, 73, 83, 0.08), -8px -8px 20px rgba(255, 255, 255, 0.85);
   --tulis-neu-raised-sm: 4px 4px 10px rgba(59, 73, 83, 0.07), -4px -4px 10px rgba(255, 255, 255, 0.85);
   --tulis-neu-raised-lg: 14px 14px 32px rgba(59, 73, 83, 0.09), -14px -14px 32px rgba(255, 255, 255, 0.9);
@@ -26,11 +26,11 @@ html {
   --tulis-neu-button-pressed: inset 2px 2px 5px rgba(59, 73, 83, 0.15), inset -2px -2px 5px rgba(255, 255, 255, 0.9);
 
   /* Light Mode Base & Surface Tokens */
-  --color-page: #EBF4DD;
-  --color-surface-base: #EBF4DD;
-  --color-surface-raised: #F4FAEB;
+  --color-page: #E6E9B8;
+  --color-surface-base: #E6E9B8;
+  --color-surface-raised: #EEF1C9;
   --color-surface-overlay: #FFFFFF;
-  --color-surface-inset: #DEE7D0;
+  --color-surface-inset: #D9DCAB;
   --color-surface-hairline: rgba(59, 73, 83, 0.12);
 
   --color-text-primary: #3B4953;
@@ -51,31 +51,31 @@ html {
 
 /* TULIS Neumorphic Utility Helpers */
 .neu-raised {
-  background-color: #EBF4DD;
+  background-color: #E6E9B8;
   box-shadow: 8px 8px 22px rgba(59, 73, 83, 0.08), -8px -8px 22px rgba(255, 255, 255, 0.85);
   border: 1px solid rgba(59, 73, 83, 0.08);
 }
 
 .neu-raised-sm {
-  background-color: #EBF4DD;
+  background-color: #E6E9B8;
   box-shadow: 4px 4px 12px rgba(59, 73, 83, 0.07), -4px -4px 12px rgba(255, 255, 255, 0.85);
   border: 1px solid rgba(59, 73, 83, 0.06);
 }
 
 .neu-inset {
-  background-color: #DEE7D0;
+  background-color: #D9DCAB;
   box-shadow: inset 3px 3px 8px rgba(59, 73, 83, 0.09), inset -3px -3px 8px rgba(255, 255, 255, 0.85);
   border: 1px solid rgba(59, 73, 83, 0.06);
 }
 
 .neu-inset-sm {
-  background-color: #E2EBD3;
+  background-color: #DEE1B0;
   box-shadow: inset 2px 2px 5px rgba(59, 73, 83, 0.08), inset -2px -2px 5px rgba(255, 255, 255, 0.85);
   border: 1px solid rgba(59, 73, 83, 0.05);
 }
 
 .neu-btn {
-  background-color: #EBF4DD;
+  background-color: #E6E9B8;
   box-shadow: 4px 4px 10px rgba(59, 73, 83, 0.09), -4px -4px 10px rgba(255, 255, 255, 0.9);
   border: 1px solid rgba(59, 73, 83, 0.1);
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);

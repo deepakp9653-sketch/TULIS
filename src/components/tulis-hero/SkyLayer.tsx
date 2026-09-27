@@ -32,7 +32,7 @@ export const SkyLayer: React.FC<LayerProps> = ({
     <div
       className="absolute inset-0 pointer-events-none select-none overflow-hidden"
       style={{
-        backgroundColor: '#EBF4DD',
+        backgroundColor: '#E6E9B8',
         zIndex: 0,
       }}
     >
@@ -40,7 +40,7 @@ export const SkyLayer: React.FC<LayerProps> = ({
       <div
         className="absolute inset-x-0 bottom-0 h-[45%] opacity-35"
         style={{
-          background: 'linear-gradient(to top, #90AB8B 0%, rgba(235, 244, 221, 0) 100%)',
+          background: 'linear-gradient(to top, #90AB8B 0%, rgba(230, 233, 184, 0) 100%)',
         }}
       />
 

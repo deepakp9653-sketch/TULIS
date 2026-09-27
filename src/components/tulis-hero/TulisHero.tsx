@@ -20,7 +20,7 @@ export const TulisHero: React.FC<TulisHeroProps> = (props) => {
       ref={containerRef}
       className="relative w-full h-[calc(100vh+620px)] md:h-[calc(100vh+800px)]"
       style={{
-        backgroundColor: '#EBF4DD',
+        backgroundColor: '#E6E9B8',
       }}
     >
       {/* Pinned 100vw x 100vh viewport scene */}

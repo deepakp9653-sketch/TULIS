@@ -53,6 +53,7 @@ export const HeroLogo: React.FC<HeroLogoProps> = ({
   const t = prefersReducedMotion ? (progress > 0.35 ? 1 : 0) : progress;
 
   // Scale: 1.0 down to ~0.28 (desktop) or ~0.34 (mobile) to match header logo slot perfectly
+  const startScale = HERO_CONFIG.logo.startScale || 1.22;
   const endScale = isMobile
     ? HERO_CONFIG.logo.endScaleMobile
     : HERO_CONFIG.logo.endScaleDesktop;
@@ -60,8 +61,8 @@ export const HeroLogo: React.FC<HeroLogoProps> = ({
   const scale = prefersReducedMotion
     ? progress > 0.35
       ? endScale
-      : 1
-    : interpolate(t, [0, 0.65], [1, endScale], Easing.easeInOutQuad);
+      : startScale
+    : interpolate(t, [0, 0.65], [startScale, endScale], Easing.easeInOutQuad);
 
   // Diagonal flight deltas: starts moving early with smooth physical glide
   const currentDeltaX = prefersReducedMotion
@@ -100,7 +101,7 @@ export const HeroLogo: React.FC<HeroLogoProps> = ({
         style={{
           opacity: haloOpacity,
           background:
-            'radial-gradient(ellipse 65% 55% at center, rgba(235, 244, 221, 0.96) 0%, rgba(235, 244, 221, 0.72) 42%, rgba(235, 244, 221, 0) 80%)',
+            'radial-gradient(ellipse 65% 55% at center, rgba(230, 233, 184, 0.96) 0%, rgba(230, 233, 184, 0.72) 42%, rgba(230, 233, 184, 0) 80%)',
         }}
       />
 

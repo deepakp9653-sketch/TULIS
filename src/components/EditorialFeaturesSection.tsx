@@ -211,9 +211,9 @@ export const EditorialFeaturesSection: React.FC = () => {
               className="relative w-full h-[290px] sm:h-[350px] lg:h-[370px] xl:h-[410px] flex items-center justify-center will-change-transform"
             >
               <ChromaKeyVideo
-                src="/tulis/landing/advanced/what-if-scenarios.mp4"
-                threshold={0.24}
-                smoothing={0.06}
+                src="/tulis/landing/advanced/emergency-sos.mp4"
+                threshold={0.28}
+                smoothing={0.04}
                 spillThreshold={0.18}
                 autoPlay={true}
                 loop={true}
@@ -262,9 +262,9 @@ export const EditorialFeaturesSection: React.FC = () => {
               className="relative w-full lg:w-1/2 h-[300px] sm:h-[360px] md:h-[400px] lg:h-[440px] xl:h-[480px] flex items-center justify-center will-change-transform"
             >
               <ChromaKeyVideo
-                src="/tulis/landing/advanced/emergency-sos.mp4"
-                threshold={0.28}
-                smoothing={0.04}
+                src="/tulis/landing/advanced/what-if-scenarios.mp4"
+                threshold={0.24}
+                smoothing={0.06}
                 spillThreshold={0.18}
                 autoPlay={true}
                 loop={true}

@@ -108,24 +108,6 @@ export const TulisFooter: React.FC<TulisFooterProps> = ({
       </div>
 
       {/* =========================================================================
-          MASSIVE TULIS WORDMARK (Architectural Brand Signature)
-          Anchors the lower left of the footer and extends across the composition.
-          Very low opacity (0.07), subtle tonal contrast against #12382E dark background.
-          ========================================================================= */}
-      <motion.div
-        style={{
-          opacity: wordmarkOpacity,
-          y: wordmarkY,
-        }}
-        className="absolute bottom-6 sm:bottom-8 lg:bottom-10 left-4 sm:left-8 lg:left-12 pointer-events-none select-none z-0 will-change-transform"
-        aria-hidden="true"
-      >
-        <span className="block font-black text-[clamp(5.5rem,19vw,18rem)] tracking-tighter leading-none text-[#F4F5EE]/[0.07] whitespace-nowrap">
-          TULIS
-        </span>
-      </motion.div>
-
-      {/* =========================================================================
           FOOTER CONTENT: ASYMMETRICAL 40 / 60 DESKTOP COMPOSITION
           Left: ~40% (Brand anchor, editorial tone)
           Right: ~60% (Install block, navigation columns, illustration)
@@ -142,7 +124,7 @@ export const TulisFooter: React.FC<TulisFooterProps> = ({
               LEFT SIDE: ~40% (Col 1-5 on desktop)
               Primary visual anchor with brand mark and architectural calm
               ===================================================================== */}
-          <div className="lg:col-span-5 flex flex-col justify-between space-y-8 pr-0 lg:pr-8">
+          <div className="lg:col-span-5 flex flex-col justify-start space-y-6 sm:space-y-8 pr-0 lg:pr-8">
             <div className="space-y-6">
               {/* Brand Header */}
               <div className="flex items-center gap-3">
@@ -251,7 +233,7 @@ export const TulisFooter: React.FC<TulisFooterProps> = ({
                     {['Plan Trips', 'Shared Expenses', 'Fair Splits', 'Settlement'].map((item) => (
                       <li key={item}>
                         <a
-                          href="#workspace"
+                          href="#split-fairly"
                           className="hover:text-[#D9EE86] transition-colors inline-block hover:translate-x-0.5 duration-200"
                         >
                           {item}
@@ -363,10 +345,27 @@ export const TulisFooter: React.FC<TulisFooterProps> = ({
         </motion.div>
 
         {/* =========================================================================
+            MASSIVE ARCHITECTURAL TULIS WORDMARK
+            Positioned cleanly below all footer text content so there is zero overlap.
+            ========================================================================= */}
+        <motion.div
+          style={{
+            opacity: wordmarkOpacity,
+            y: wordmarkY,
+          }}
+          className="mt-10 sm:mt-14 -mb-3 sm:-mb-5 pointer-events-none select-none will-change-transform overflow-hidden"
+          aria-hidden="true"
+        >
+          <span className="block font-black text-[clamp(4.5rem,16vw,14rem)] tracking-tighter leading-none text-[#F4F5EE]/[0.08] whitespace-nowrap">
+            TULIS
+          </span>
+        </motion.div>
+
+        {/* =========================================================================
             BOTTOM BRAND SIGNATURE & COPYRIGHT
             TULIS — PLAN TOGETHER. SPLIT FAIRLY. SETTLE WITH CONFIDENCE.
             ========================================================================= */}
-        <div className="mt-16 sm:mt-20 pt-8 border-t border-[#1F5A45]/40 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-mono text-[#F4F5EE]/60">
+        <div className="mt-6 sm:mt-8 pt-6 border-t border-[#1F5A45]/40 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-mono text-[#F4F5EE]/60">
           <span className="font-bold tracking-wider text-[#F4F5EE]/80 text-center sm:text-left">
             TULIS — PLAN TOGETHER. SPLIT FAIRLY. SETTLE WITH CONFIDENCE.
           </span>
