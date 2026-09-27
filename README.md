@@ -354,16 +354,6 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ---
 
-## 📜 License & Acknowledgments
-
-This project is licensed under the **MIT License**.
-
-- Built for the **Celestial Hackathon 2026**.
-- Designed with inspiration from Swiss banking typography, Apple HIG, and clean FinTech design systems.
-- Brand logo: Official Tulis Balance-Scale emblem ([`public/tulis-logo.png.jpeg`](file:///c:/Users/heena/Downloads/hackcelestial/public/tulis-logo.png.jpeg)).
-
----
-
 <div align="center">
   <strong>Tulis — One Trip. One Ledger. Zero Confusion.</strong><br />
   <sub>Built with mathematical precision, operational excellence, and architectural integrity.</sub>
