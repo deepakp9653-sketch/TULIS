@@ -16,8 +16,8 @@ import {
   Users,
   ExternalLink,
   Clock,
-  ChevronDown,
   Shield,
+  Send,
 } from 'lucide-react';
 import { NearestPoliceModal } from './NearestPoliceModal';
 import { AudioShieldModal } from './AudioShieldModal';
@@ -50,9 +50,9 @@ export const SafetyDock: React.FC<SafetyDockProps> = ({
   const [audioShieldDelay, setAudioShieldDelay] = useState(0);
   const [copySuccess, setCopySuccess] = useState(false);
   const [coords, setCoords] = useState<{ lat: number; lng: number }>({ lat: 15.2993, lng: 74.1240 });
+  const [emergencyContacts, setEmergencyContacts] = useState<Array<{ id: string; name: string; phone: string; relationship?: string }>>([]);
 
   const watchIdRef = useRef<number | null>(null);
-  const pingIntervalRef = useRef<any>(null);
 
   // Monitor geolocation if active
   useEffect(() => {
@@ -65,20 +65,60 @@ export const SafetyDock: React.FC<SafetyDockProps> = ({
     }
   }, [isActive]);
 
-  // Clean up intervals on unmount
+  // Load emergency contacts for direct WhatsApp sharing
+  useEffect(() => {
+    if (userId) {
+      fetch(`/api/safety?action=emergency-contacts&userId=${userId}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success && data.contacts) {
+            setEmergencyContacts(data.contacts);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [userId, isExpanded]);
+
+  // Clean up watchPosition on unmount
   useEffect(() => {
     return () => {
       if (watchIdRef.current !== null && 'geolocation' in navigator) {
         navigator.geolocation.clearWatch(watchIdRef.current);
       }
-      if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
     };
   }, []);
 
   if (!isActive) return null;
 
-  // Trigger Emergency Live SOS Beacon
-  const handleTriggerSos = async () => {
+  // Start continuous watchPosition GPS streaming
+  const startLocationWatch = (eventId: string) => {
+    if ('geolocation' in navigator) {
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+      }
+      watchIdRef.current = navigator.geolocation.watchPosition(
+        (pos) => {
+          setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+          fetch('/api/safety', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'sos-update',
+              sosEventId: eventId,
+              lat: pos.coords.latitude,
+              lng: pos.coords.longitude,
+              accuracy: pos.coords.accuracy,
+            }),
+          }).catch(() => {});
+        },
+        (err) => console.warn('Watch position error:', err),
+        { enableHighAccuracy: true, maximumAge: 5000, timeout: 5000 }
+      );
+    }
+  };
+
+  // 1-Tap Share Live Location via WhatsApp
+  const handleShareLiveLocationWhatsApp = async (recipientPhone?: string) => {
     setSosLoading(true);
     try {
       let currentLat = coords.lat;
@@ -96,7 +136,80 @@ export const SafetyDock: React.FC<SafetyDockProps> = ({
                 resolve();
               },
               () => resolve(),
-              { timeout: 3000 }
+              { timeout: 3000, enableHighAccuracy: true }
+            );
+          });
+        } catch (e) {}
+      }
+
+      let activeEventId = sosEventId;
+
+      if (!activeEventId) {
+        const res = await fetch('/api/safety', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'sos-trigger',
+            tripId,
+            userId,
+            userName,
+            userPhone,
+            lat: currentLat,
+            lng: currentLng,
+          }),
+        });
+
+        const data = await res.json();
+        if (data.success && data.sosEventId) {
+          activeEventId = data.sosEventId;
+          setSosEventId(data.sosEventId);
+          setIsSosActive(true);
+          startLocationWatch(data.sosEventId);
+        }
+      } else {
+        setIsSosActive(true);
+        startLocationWatch(activeEventId);
+      }
+
+      const host = typeof window !== 'undefined' ? window.location.origin : '';
+      const liveLink = `${host}/live/${activeEventId}`;
+      const mapsPin = `https://maps.google.com/?q=${currentLat},${currentLng}`;
+
+      const message = `🚨 EMERGENCY LIVE LOCATION ALERT from ${userName}!\n\n🔴 Watch my real-time GPS location live on the map:\n👉 ${liveLink}\n\n📍 Current Google Maps Pin:\n${mapsPin}\n\nPlease keep an eye on this link. My coordinates update in real time as I move.`;
+
+      const cleanPhone = recipientPhone ? recipientPhone.replace(/[^0-9]/g, '') : '';
+      const whatsappUrl = cleanPhone
+        ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`
+        : `https://wa.me/?text=${encodeURIComponent(message)}`;
+
+      window.open(whatsappUrl, '_blank');
+      setIsExpanded(false);
+    } catch (err) {
+      console.error('Share live location error:', err);
+    } finally {
+      setSosLoading(false);
+    }
+  };
+
+  // Trigger Emergency Live SOS Beacon
+  const handleTriggerSos = async () => {
+    setSosLoading(true);
+    try {
+      let currentLat = coords.lat;
+      let currentLng = coords.lng;
+
+      if (typeof window !== 'undefined' && 'geolocation' in navigator) {
+        try {
+          await new Promise<void>((resolve) => {
+            navigator.geolocation.getCurrentPosition(
+              (pos) => {
+                currentLat = pos.coords.latitude;
+                currentLng = pos.coords.longitude;
+                setCoords({ lat: currentLat, lng: currentLng });
+                resolve();
+              },
+              () => resolve(),
+              { timeout: 3000, enableHighAccuracy: true }
             );
           });
         } catch (e) {}
@@ -106,7 +219,7 @@ export const SafetyDock: React.FC<SafetyDockProps> = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'trigger-sos',
+          action: 'sos-trigger',
           tripId,
           userId,
           userName,
@@ -117,31 +230,11 @@ export const SafetyDock: React.FC<SafetyDockProps> = ({
       });
 
       const data = await res.json();
-      if (data.success && data.event) {
-        setSosEventId(data.event.id);
+      if (data.success && data.sosEventId) {
+        setSosEventId(data.sosEventId);
         setIsSosActive(true);
         setIsExpanded(false);
-
-        // Start high-frequency location ping watch ref
-        if ('geolocation' in navigator) {
-          watchIdRef.current = navigator.geolocation.watchPosition(
-            (pos) => {
-              setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-              fetch('/api/safety', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  action: 'update-location',
-                  eventId: data.event.id,
-                  lat: pos.coords.latitude,
-                  lng: pos.coords.longitude,
-                }),
-              }).catch(() => {});
-            },
-            (err) => console.warn('Watch position error:', err),
-            { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 }
-          );
-        }
+        startLocationWatch(data.sosEventId);
       }
     } catch (err) {
       console.error('Trigger SOS error:', err);
@@ -158,8 +251,9 @@ export const SafetyDock: React.FC<SafetyDockProps> = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'resolve-sos',
-          eventId: sosEventId,
+          action: 'sos-resolve',
+          sosEventId,
+          tripId,
         }),
       });
 
@@ -198,7 +292,7 @@ export const SafetyDock: React.FC<SafetyDockProps> = ({
               initial={{ opacity: 0, y: 15, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 15, scale: 0.95 }}
-              className="bg-[#F4F5EE] border-2 border-[#D1D8BE] p-3.5 rounded-3xl shadow-2xl backdrop-blur-xl flex flex-col gap-2.5 min-w-[240px] text-[#3B4953]"
+              className="bg-[#F4F5EE] border-2 border-[#D1D8BE] p-3.5 rounded-3xl shadow-2xl backdrop-blur-xl flex flex-col gap-2.5 min-w-[260px] max-w-sm text-[#3B4953]"
             >
               {/* Drawer Header */}
               <div className="flex items-center justify-between pb-2 border-b border-[#D1D8BE] px-1">
@@ -212,6 +306,31 @@ export const SafetyDock: React.FC<SafetyDockProps> = ({
                   <X className="w-3.5 h-3.5" />
                 </button>
               </div>
+
+              {/* PRIMARY PROMINENT ACTION: Share Live Location via WhatsApp */}
+              <button
+                type="button"
+                onClick={() => handleShareLiveLocationWhatsApp()}
+                disabled={sosLoading}
+                className="w-full px-3.5 py-3 rounded-2xl bg-gradient-to-r from-[#25D366] to-[#1EBE5D] hover:from-[#20BD5A] hover:to-[#17A852] text-white text-xs font-extrabold flex items-center justify-between shadow-md transition-all cursor-pointer border border-[#25D366]/40"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+                    <Share2 className="w-4 h-4 text-white" />
+                  </div>
+                  <div className="text-left">
+                    <span className="block leading-tight font-extrabold text-[12px]">
+                      Share Live Location via WhatsApp
+                    </span>
+                    <span className="text-[10px] text-white/90 font-normal">
+                      Sends real-time live GPS tracking link
+                    </span>
+                  </div>
+                </div>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white text-[#1EBE5D] font-extrabold shrink-0 shadow-xs">
+                  SEND
+                </span>
+              </button>
 
               {/* Action 1: Call Emergency 112 */}
               <a
@@ -239,9 +358,9 @@ export const SafetyDock: React.FC<SafetyDockProps> = ({
               >
                 <div className="flex items-center gap-2">
                   <Radio className="w-4 h-4 animate-pulse" />
-                  <span>{sosLoading ? 'Arming Beacon...' : 'Broadcast Live SOS'}</span>
+                  <span>{sosLoading ? 'Arming Beacon...' : 'Broadcast Full SOS Beacon'}</span>
                 </div>
-                <span className="text-[10px] font-mono opacity-80">GPS</span>
+                <span className="text-[10px] font-mono opacity-80">RADAR</span>
               </button>
 
               {/* Action 3: Nearest Police & Medical Help */}
@@ -302,7 +421,7 @@ export const SafetyDock: React.FC<SafetyDockProps> = ({
                 className="px-3 py-2 rounded-xl bg-white hover:bg-[#EBF4DD] border border-[#D1D8BE] text-[#6B7C85] hover:text-[#3B4953] text-xs flex items-center gap-2 transition-colors text-left cursor-pointer"
               >
                 <Users className="w-4 h-4 text-[#5A7863]" />
-                <span>Emergency Contacts</span>
+                <span>Emergency Contacts ({emergencyContacts.length})</span>
               </button>
             </motion.div>
           )}
@@ -320,7 +439,7 @@ export const SafetyDock: React.FC<SafetyDockProps> = ({
                 type="button"
                 onClick={() => setIsExpanded(!isExpanded)}
                 disabled={sosLoading}
-                title="Tap for Emergency SOS Quick Features Suite"
+                title="Tap for Emergency SOS & WhatsApp Live Location"
                 className="h-12 px-4.5 rounded-full bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-700 hover:to-rose-800 text-white font-extrabold text-xs shadow-2xl flex items-center gap-2.5 border-2 border-red-300 ring-4 ring-red-500/30 animate-pulse transition-all cursor-pointer"
               >
                 <Radio className="w-4 h-4 animate-spin" style={{ animationDuration: '6s' }} />
@@ -361,7 +480,7 @@ export const SafetyDock: React.FC<SafetyDockProps> = ({
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className="bg-[#F4F5EE] border-2 border-red-500/60 p-6 sm:p-8 rounded-3xl max-w-md w-full shadow-2xl relative text-left text-[#3B4953]"
+            className="bg-[#F4F5EE] border-2 border-red-500/60 p-6 sm:p-8 rounded-3xl max-w-md w-full shadow-2xl relative text-left text-[#3B4953] max-h-[92vh] overflow-y-auto"
           >
             <div className="flex items-center gap-3 border-b border-[#D1D8BE] pb-4 mb-5">
               <div className="w-12 h-12 rounded-2xl bg-red-600 text-white flex items-center justify-center font-bold shrink-0 shadow-md">
@@ -372,7 +491,7 @@ export const SafetyDock: React.FC<SafetyDockProps> = ({
                   Live SOS Beacon Active
                 </h3>
                 <p className="text-xs text-[#6B7C85]">
-                  Your real-time GPS coordinates are being recorded and broadcast.
+                  Your real-time GPS coordinates are broadcasting live.
                 </p>
               </div>
             </div>
@@ -399,24 +518,51 @@ export const SafetyDock: React.FC<SafetyDockProps> = ({
                 </button>
               </div>
               <p className="text-[10px] text-[#6B7C85]">
-                Anyone with this link can view your live position without needing an account.
+                Anyone with this link can watch your real-time live map movement without needing an account.
               </p>
             </div>
 
-            {/* Quick Actions */}
-            <div className="space-y-2.5 mb-6">
-              <a
-                href={`https://wa.me/?text=${encodeURIComponent(
-                  `🚨 EMERGENCY ALERT from ${userName}! Track my live GPS location: ${trackingUrl}`
-                )}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full py-3 rounded-2xl bg-[#25D366] hover:bg-[#20BD5A] text-white font-bold text-xs shadow-md flex items-center justify-center gap-2 transition-colors cursor-pointer"
+            {/* WhatsApp Location Sharing Actions */}
+            <div className="space-y-3 mb-6">
+              {/* Primary WhatsApp Dispatch */}
+              <button
+                type="button"
+                onClick={() => handleShareLiveLocationWhatsApp()}
+                className="w-full py-3.5 rounded-2xl bg-[#25D366] hover:bg-[#20BD5A] text-white font-extrabold text-xs shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer"
               >
                 <Share2 className="w-4 h-4" />
-                <span>Dispatch Live Link via WhatsApp</span>
-              </a>
+                <span>Send Live Location via WhatsApp</span>
+              </button>
 
+              {/* Direct Send to Emergency Contacts if Saved */}
+              {emergencyContacts.length > 0 && (
+                <div className="p-3 rounded-2xl bg-white border border-[#D1D8BE] space-y-2">
+                  <span className="text-[10px] font-mono font-bold text-[#6B7C85] uppercase block">
+                    Quick Send to Emergency Contacts:
+                  </span>
+                  <div className="flex flex-col gap-1.5">
+                    {emergencyContacts.map((contact) => (
+                      <button
+                        key={contact.id}
+                        type="button"
+                        onClick={() => handleShareLiveLocationWhatsApp(contact.phone)}
+                        className="w-full px-3 py-2 rounded-xl bg-[#F4F5EE] hover:bg-[#EBF4DD] border border-[#D1D8BE] text-xs font-semibold text-[#3B4953] flex items-center justify-between transition-colors cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-[#25D366]" />
+                          <span>{contact.name}</span>
+                          <span className="text-[10px] text-[#6B7C85]">({contact.relationship || 'Contact'})</span>
+                        </div>
+                        <span className="text-[10px] font-mono text-[#25D366] font-bold">
+                          WhatsApp ➔
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Dial 112 */}
               <a
                 href="tel:112"
                 className="w-full py-3 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-md flex items-center justify-center gap-2 transition-colors cursor-pointer"

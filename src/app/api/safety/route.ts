@@ -13,6 +13,33 @@ const checkinStore = new Map<
   }
 >();
 
+// In-memory cache for Live SOS Events and Location Telemetry Pings
+export interface CachedSosEvent {
+  id: string;
+  userId: string;
+  tripId: string | null;
+  status: 'active' | 'resolved';
+  initialLat: number;
+  initialLng: number;
+  triggeredAt: string;
+  resolvedAt?: string | null;
+  userName: string;
+  userAvatar?: string;
+  userPhone?: string;
+}
+
+export interface CachedSosPing {
+  id: string;
+  sosEventId: string;
+  latitude: number;
+  longitude: number;
+  accuracyMeters: number;
+  recordedAt: string;
+}
+
+const sosEventStore = new Map<string, CachedSosEvent>();
+const sosPingStore = new Map<string, CachedSosPing[]>();
+
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -44,37 +71,63 @@ export async function GET(req: Request) {
         return NextResponse.json({ success: false, error: 'SOS event ID required' }, { status: 400 });
       }
 
-      const events = await sql`
-        SELECT s.id, s.user_id as "userId", s.trip_id as "tripId", s.status,
-               s.initial_latitude as "initialLat", s.initial_longitude as "initialLng",
-               s.triggered_at as "triggeredAt", s.resolved_at as "resolvedAt",
-               u.name as "userName", u.avatar as "userAvatar", u.phone as "userPhone"
-        FROM sos_events s
-        LEFT JOIN users u ON s.user_id = u.id
-        WHERE s.id = ${sosEventId}
-        LIMIT 1;
-      `;
+      try {
+        const events = await sql`
+          SELECT s.id, s.user_id as "userId", s.trip_id as "tripId", s.status,
+                 s.initial_latitude as "initialLat", s.initial_longitude as "initialLng",
+                 s.triggered_at as "triggeredAt", s.resolved_at as "resolvedAt",
+                 u.name as "userName", u.avatar as "userAvatar", u.phone as "userPhone"
+          FROM sos_events s
+          LEFT JOIN users u ON s.user_id = u.id
+          WHERE s.id = ${sosEventId}
+          LIMIT 1;
+        `;
 
-      if (events.length === 0) {
-        return NextResponse.json({ success: false, error: 'Emergency beacon not found' }, { status: 404 });
+        if (events && events.length > 0) {
+          const event = events[0];
+          const cached = sosEventStore.get(sosEventId);
+          if (!event.userName && cached?.userName) {
+            event.userName = cached.userName;
+          }
+          if (!event.userPhone && cached?.userPhone) {
+            event.userPhone = cached.userPhone;
+          }
+          if (!event.userAvatar && cached?.userAvatar) {
+            event.userAvatar = cached.userAvatar;
+          }
+
+          // Fetch location pings trail
+          const pings = await sql`
+            SELECT id, latitude, longitude, accuracy_meters as "accuracyMeters", recorded_at as "recordedAt"
+            FROM sos_location_pings
+            WHERE sos_event_id = ${sosEventId}
+            ORDER BY recorded_at ASC;
+          `;
+
+          return NextResponse.json({
+            success: true,
+            event,
+            pings: pings || [],
+            latestPing: pings && pings.length > 0 ? pings[pings.length - 1] : null,
+          });
+        }
+      } catch (dbErr) {
+        console.warn('DB read error for SOS status, falling back to in-memory store:', dbErr);
       }
 
-      const event = events[0];
+      // In-memory fallback
+      const cachedEvent = sosEventStore.get(sosEventId);
+      if (cachedEvent) {
+        const cachedPings = sosPingStore.get(sosEventId) || [];
+        return NextResponse.json({
+          success: true,
+          event: cachedEvent,
+          pings: cachedPings,
+          latestPing: cachedPings.length > 0 ? cachedPings[cachedPings.length - 1] : null,
+        });
+      }
 
-      // Fetch location pings trail
-      const pings = await sql`
-        SELECT id, latitude, longitude, accuracy_meters as "accuracyMeters", recorded_at as "recordedAt"
-        FROM sos_location_pings
-        WHERE sos_event_id = ${sosEventId}
-        ORDER BY recorded_at ASC;
-      `;
-
-      return NextResponse.json({
-        success: true,
-        event,
-        pings,
-        latestPing: pings.length > 0 ? pings[pings.length - 1] : null,
-      });
+      return NextResponse.json({ success: false, error: 'Emergency beacon not found' }, { status: 404 });
     }
 
     // 3. Nearby Police Stations lookup
@@ -344,92 +397,152 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, message: 'Contact removed' });
     }
 
-    // 2. Trigger SOS Beacon
-    if (action === 'sos-trigger') {
-      const { userId, tripId, latitude, longitude } = body;
-      const targetUserId = sessionUser?.id || userId;
-      if (!targetUserId) {
-        return NextResponse.json({ success: false, error: 'User session required' }, { status: 401 });
-      }
+    // 2. Trigger SOS Beacon / Share Live Location
+    if (action === 'sos-trigger' || action === 'trigger-sos' || action === 'share-location') {
+      const { userId, tripId, latitude, longitude, lat: altLat, lng: altLng, userName, userPhone, userAvatar } = body;
+      const targetUserId = sessionUser?.id || userId || 'user-traveler';
 
       const sosEventId = 'sos-' + Date.now();
-      const lat = parseFloat(latitude) || 15.2993;
-      const lng = parseFloat(longitude) || 74.1240;
+      const lat = parseFloat(latitude ?? altLat ?? '15.2993');
+      const lng = parseFloat(longitude ?? altLng ?? '74.1240');
 
-      await sql`
-        INSERT INTO sos_events (id, user_id, trip_id, status, initial_latitude, initial_longitude)
-        VALUES (${sosEventId}, ${targetUserId}, ${tripId || null}, 'active', ${lat}, ${lng});
-      `;
+      const cachedEvent: CachedSosEvent = {
+        id: sosEventId,
+        userId: targetUserId,
+        tripId: tripId || null,
+        status: 'active',
+        initialLat: lat,
+        initialLng: lng,
+        triggeredAt: new Date().toISOString(),
+        userName: userName || sessionUser?.name || 'Traveler',
+        userAvatar: userAvatar || sessionUser?.avatar || '',
+        userPhone: userPhone || sessionUser?.phone || '',
+      };
 
-      // Insert initial ping
-      await sql`
-        INSERT INTO sos_location_pings (id, sos_event_id, latitude, longitude, accuracy_meters)
-        VALUES (${'ping-' + Date.now()}, ${sosEventId}, ${lat}, ${lng}, 15.0);
-      `;
+      const initialPing: CachedSosPing = {
+        id: 'ping-' + Date.now(),
+        sosEventId,
+        latitude: lat,
+        longitude: lng,
+        accuracyMeters: 12.0,
+        recordedAt: new Date().toISOString(),
+      };
 
-      // Log to events table
-      if (tripId) {
+      // Store in memory
+      sosEventStore.set(sosEventId, cachedEvent);
+      sosPingStore.set(sosEventId, [initialPing]);
+
+      // Attempt DB persistence
+      try {
         await sql`
-          INSERT INTO events (id, trip_id, event_type, actor_id, payload_json)
-          VALUES (
-            ${'evt-' + Date.now()},
-            ${tripId},
-            'SOS_TRIGGERED',
-            ${targetUserId},
-            ${JSON.stringify({ sosEventId, lat, lng, timestamp: new Date().toISOString() })}
-          );
+          INSERT INTO sos_events (id, user_id, trip_id, status, initial_latitude, initial_longitude)
+          VALUES (${sosEventId}, ${targetUserId}, ${tripId || null}, 'active', ${lat}, ${lng});
         `;
+
+        await sql`
+          INSERT INTO sos_location_pings (id, sos_event_id, latitude, longitude, accuracy_meters)
+          VALUES (${initialPing.id}, ${sosEventId}, ${lat}, ${lng}, 12.0);
+        `;
+
+        if (tripId) {
+          await sql`
+            INSERT INTO events (id, trip_id, event_type, actor_id, payload_json)
+            VALUES (
+              ${'evt-' + Date.now()},
+              ${tripId},
+              'SOS_TRIGGERED',
+              ${targetUserId},
+              ${JSON.stringify({ sosEventId, lat, lng, timestamp: new Date().toISOString() })}
+            );
+          `;
+        }
+      } catch (dbErr) {
+        console.warn('DB write for SOS trigger fell back to in-memory store:', dbErr);
       }
 
       return NextResponse.json({
         success: true,
         sosEventId,
+        event: cachedEvent,
         liveTrackingUrl: `/live/${sosEventId}`,
         message: 'Emergency SOS beacon initiated successfully',
       });
     }
 
-    // 3. Update SOS Location Ping (Called every ~15s while active)
-    if (action === 'sos-update') {
-      const { sosEventId, latitude, longitude, accuracyMeters } = body;
-      if (!sosEventId || latitude === undefined || longitude === undefined) {
+    // 3. Update SOS Location Ping (Called periodically while active)
+    if (action === 'sos-update' || action === 'update-location') {
+      const { sosEventId, eventId, latitude, longitude, lat: altLat, lng: altLng, accuracyMeters, accuracy } = body;
+      const targetEventId = sosEventId || eventId;
+      if (!targetEventId || (latitude === undefined && altLat === undefined)) {
         return NextResponse.json({ success: false, error: 'Missing coordinates or event ID' }, { status: 400 });
       }
 
+      const pingLat = parseFloat(latitude ?? altLat);
+      const pingLng = parseFloat(longitude ?? altLng);
+      const pingAcc = parseFloat(accuracyMeters ?? accuracy ?? 10.0);
       const pingId = 'ping-' + Date.now();
-      await sql`
-        INSERT INTO sos_location_pings (id, sos_event_id, latitude, longitude, accuracy_meters)
-        VALUES (${pingId}, ${sosEventId}, ${parseFloat(latitude)}, ${parseFloat(longitude)}, ${parseFloat(accuracyMeters) || 10.0});
-      `;
+
+      const newPing: CachedSosPing = {
+        id: pingId,
+        sosEventId: targetEventId,
+        latitude: pingLat,
+        longitude: pingLng,
+        accuracyMeters: pingAcc,
+        recordedAt: new Date().toISOString(),
+      };
+
+      const existingPings = sosPingStore.get(targetEventId) || [];
+      sosPingStore.set(targetEventId, [...existingPings.slice(-100), newPing]);
+
+      try {
+        await sql`
+          INSERT INTO sos_location_pings (id, sos_event_id, latitude, longitude, accuracy_meters)
+          VALUES (${pingId}, ${targetEventId}, ${pingLat}, ${pingLng}, ${pingAcc});
+        `;
+      } catch (dbErr) {
+        console.warn('DB write for SOS ping update fell back to in-memory store:', dbErr);
+      }
 
       return NextResponse.json({ success: true, pingId });
     }
 
     // 4. Resolve SOS Beacon
-    if (action === 'sos-resolve') {
-      const { sosEventId, tripId } = body;
-      if (!sosEventId) {
+    if (action === 'sos-resolve' || action === 'resolve-sos') {
+      const { sosEventId, eventId, tripId } = body;
+      const targetEventId = sosEventId || eventId;
+      if (!targetEventId) {
         return NextResponse.json({ success: false, error: 'SOS event ID required' }, { status: 400 });
       }
 
-      await sql`
-        UPDATE sos_events
-        SET status = 'resolved',
-            resolved_at = CURRENT_TIMESTAMP
-        WHERE id = ${sosEventId};
-      `;
+      const existingEvent = sosEventStore.get(targetEventId);
+      if (existingEvent) {
+        existingEvent.status = 'resolved';
+        existingEvent.resolvedAt = new Date().toISOString();
+        sosEventStore.set(targetEventId, existingEvent);
+      }
 
-      if (tripId && sessionUser) {
+      try {
         await sql`
-          INSERT INTO events (id, trip_id, event_type, actor_id, payload_json)
-          VALUES (
-            ${'evt-' + Date.now()},
-            ${tripId},
-            'SOS_RESOLVED',
-            ${sessionUser.id},
-            ${JSON.stringify({ sosEventId, timestamp: new Date().toISOString() })}
-          );
+          UPDATE sos_events
+          SET status = 'resolved',
+              resolved_at = CURRENT_TIMESTAMP
+          WHERE id = ${targetEventId};
         `;
+
+        if (tripId && sessionUser) {
+          await sql`
+            INSERT INTO events (id, trip_id, event_type, actor_id, payload_json)
+            VALUES (
+              ${'evt-' + Date.now()},
+              ${tripId},
+              'SOS_RESOLVED',
+              ${sessionUser.id},
+              ${JSON.stringify({ sosEventId: targetEventId, timestamp: new Date().toISOString() })}
+            );
+          `;
+        }
+      } catch (dbErr) {
+        console.warn('DB write for SOS resolve fell back to in-memory store:', dbErr);
       }
 
       return NextResponse.json({ success: true, message: 'Emergency beacon resolved safely' });
