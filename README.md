@@ -11,7 +11,7 @@
   [![Neon PostgreSQL](https://img.shields.io/badge/Neon-PostgreSQL-green?logo=postgresql)](https://neon.tech/)
   [![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-3.4.19-38B2AC?logo=tailwind-css)](https://tailwindcss.com/)
   [![UPI](https://img.shields.io/badge/Settlement-UPI%20%E2%82%B9%20INR-orange)](https://www.npci.org.in/)
-  [![License](https://img.shields.io/badge/License-MIT-purple.svg)](LICENSE)
+  
 </div>
 
 ---
