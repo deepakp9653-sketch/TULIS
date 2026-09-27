@@ -314,17 +314,17 @@ export const CreateTripModal: React.FC<CreateTripModalProps> = ({
                 </div>
 
                 {/* Human Safety Shield & Emergency SOS Opt-in Toggle */}
-                <div className="p-3.5 rounded-2xl bg-surface-base border border-surface-hairline flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-500 shrink-0">
-                      <Shield className="w-4 h-4" />
+                <div className="p-4 rounded-2xl bg-rose-500/10 border-2 border-rose-500/30 flex items-center justify-between gap-3 shadow-xs">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-rose-500 text-white flex items-center justify-center font-bold shadow-sm shrink-0">
+                      <Shield className="w-5 h-5" />
                     </div>
                     <div>
-                      <span className="text-xs font-bold text-ink-primary block">
+                      <span className="text-xs sm:text-sm font-bold text-ink-primary block">
                         Human Safety Shield & Emergency SOS
                       </span>
-                      <span className="text-[11px] text-ink-secondary block">
-                        Turn on for 112 emergency dialer, Audio Shield deterrent & nearest police navigation
+                      <span className="text-[11px] text-ink-secondary block leading-snug">
+                        Turn on for 112 emergency dialer, live GPS SOS beacon, Audio Shield deterrent & nearest police navigation. An SOS button will appear in the bottom-right corner of the dashboard.
                       </span>
                     </div>
                   </div>
@@ -336,7 +336,7 @@ export const CreateTripModal: React.FC<CreateTripModalProps> = ({
                       onChange={(e) => setSafetyModeEnabled(e.target.checked)}
                       className="sr-only peer"
                     />
-                    <div className="w-9 h-5 bg-surface-inset peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-rose-500 border border-surface-hairline"></div>
+                    <div className="w-11 h-6 bg-surface-inset peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-rose-600 border border-surface-hairline shadow-inner"></div>
                   </label>
                 </div>
               </motion.div>
@@ -350,12 +350,17 @@ export const CreateTripModal: React.FC<CreateTripModalProps> = ({
                 exit={{ opacity: 0, x: -10 }}
                 className="space-y-4"
               >
-                <div className="p-3 rounded-xl bg-surface-base border border-surface-hairline flex items-center justify-between text-xs">
+                <div className="p-3.5 rounded-2xl bg-surface-base border border-surface-hairline flex items-center justify-between text-xs">
                   <div>
                     <span className="font-semibold text-ink-primary">Organizer: {creatorName}</span>
                     <span className="text-[10px] text-ink-muted block">A unique 6-character Invite Code will be generated!</span>
                   </div>
-                  <span className="font-numeric font-bold text-emerald-400 text-sm">₹{budgetCeiling.toLocaleString('en-IN')}</span>
+                  <div className="text-right">
+                    <span className="font-numeric font-bold text-emerald-400 text-sm block">₹{budgetCeiling.toLocaleString('en-IN')}</span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-block mt-0.5 ${safetyModeEnabled ? 'bg-rose-100 text-rose-700 border border-rose-300' : 'bg-surface-inset text-ink-muted'}`}>
+                      {safetyModeEnabled ? '🛡️ SOS Button Enabled' : 'Safety Disabled'}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="space-y-2">

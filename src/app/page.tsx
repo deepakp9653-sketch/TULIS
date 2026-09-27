@@ -3047,6 +3047,7 @@ export default function Home() {
 
       {/* Single, Clean Gogo Floating Button (Bottom-Right only) */}
       <GogoSingleFAB
+        shiftLeft={Boolean(trip.safetyModeEnabled)}
         onClick={() => {
           setGogoModalTab('chat');
           setIsGogoModalOpen(true);
